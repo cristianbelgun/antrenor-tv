@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagnostic sunet</title>
+<style>
+  body { margin: 0; background: #111513; color: #f1f4ef; font: 22px/1.45 "Roboto", system-ui, sans-serif; padding: 28px 40px; }
+  h1 { margin: 0 0 10px; font-size: 34px; }
+  .row { display: flex; gap: 40px; align-items: flex-start; }
+  .col { flex: 1; min-width: 0; }
+  .step { padding: 10px 14px; border-left: 6px solid #2f3833; margin: 6px 0; }
+  .step.on { border-color: #c6f05a; background: #1b211e; }
+  button { font: inherit; font-weight: 600; padding: 14px 26px; border-radius: 10px; border: 0; background: #c6f05a; color: #111513; margin: 8px 0; }
+  pre { background: #1b211e; padding: 12px; border-radius: 8px; white-space: pre-wrap; word-break: break-word; font-size: 18px; margin: 0; }
+  .muted { color: #93a097; }
+</style>
+</head>
+<body>
+<h1>Diagnostic sunet · Antrenor TV</h1>
+<p class="muted">Apasă <b>OK</b> pe telecomandă de mai multe ori, rar. La fiecare pas, spune-mi dacă s-a auzit ceva. Apoi fă o poză ecranului.</p>
+<div class="row">
+  <div class="col">
+    <div class="step" id="s1">1. Ton simplu de test (3 secunde)</div>
+    <div class="step" id="s2">2. Bip-ul aplicației (lung)</div>
+    <div class="step" id="s3">3. Muzica aplicației (10 secunde)</div>
+    <div class="step" id="s4">4. Ticuri de ritm (8 secunde)</div>
+    <div class="step" id="s5">5. Gata, fă o poză ecranului</div>
+    <button id="btn" type="button">Sau apasă aici cu cursorul telecomenzii</button>
+  </div>
+  <div class="col"><pre id="info">Se încarcă…</pre></div>
+</div>
+<script>
+  var errors = [], log = [];
+  window.onerror = function (m, src, line) { errors.push(m + ' @' + (src || '').split('/').pop() + ':' + line); };
+</script>
+<script src="js/program.js"></script>
+<script src="js/tempo.js"></script>
+<script src="js/music.js"></script>
+<script src="js/audio.js"></script>
+<script>
+(function () {
+  var step = 0, raw = null;
+  var Ctx = window.AudioContext || window.webkitAudioContext;
+  function show() {
+    var a = window.AT && AT.audio, c = a && a._ctx ? a._ctx() : null;
+    var lines = [
+      'Browser: ' + navigator.userAgent,
+      'AudioContext disponibil: ' + (Ctx ? 'da' : 'NU'),
+      'Motor de sunet încărcat: ' + (a && a.create ? 'da' : 'NU (versiune veche?)'),
+      'Activare utilizator: ' + (navigator.userActivation ? (navigator.userActivation.hasBeenActive ? 'da' : 'nu') : 'necunoscut'),
+      'Ton simplu: ' + (raw ? raw.state + ', timp ' + raw.currentTime.toFixed(2) : '—'),
+      'Motor: ' + (c ? c.state + ', timp ' + c.currentTime.toFixed(2) + ', ' + c.sampleRate + ' Hz' : '—'),
+      'Stare: ' + (a && a.state ? JSON.stringify(a.state()) : '—'),
+      'Volum salvat: ' + (function () { try { return localStorage.getItem('at.music'); } catch (e) { return 'eroare'; } })(),
+      'Erori: ' + (errors.length ? errors.join(' | ') : 'niciuna'),
+      'Taste: ' + log.slice(-6).join(', ')
+    ];
+    document.getElementById('info').textContent = lines.join('\n');
+  }
+  function mark(n) {
+    for (var i = 1; i <= 5; i++) document.getElementById('s' + i).className = 'step' + (i === n ? ' on' : '');
+  }
+  function next(src) {
+    step++;
+    mark(step);
+    try {
+      if (step === 1) {
+        raw = new Ctx();
+        if (raw.state === 'suspended' && raw.resume) raw.resume();
+        var o = raw.createOscillator(), g = raw.createGain();
+        o.frequency.value = 440; g.gain.value = 0.3;
+        o.connect(g); g.connect(raw.destination);
+        o.start(); o.stop(raw.currentTime + 3);
+      } else if (step === 2) {
+        AT.audio.init(); AT.audio.signal('long');
+      } else if (step === 3) {
+        AT.audio.init(); AT.audio.setScene('exercise');
+        setTimeout(function () { AT.audio.setScene('home'); }, 10000);
+      } else if (step === 4) {
+        AT.audio.init(); AT.audio.startTempo(AT.tempo.forExercise('goblet-squat', 1));
+        setTimeout(function () { AT.audio.stopTempo(); }, 8000);
+      }
+    } catch (e) { errors.push('pas ' + step + ': ' + e.message); }
+    log.push(src);
+    show();
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.repeat) return;
+    if (e.keyCode === 13) { e.preventDefault(); next('OK(' + (e.isTrusted ? 'real' : 'sintetic') + ')'); }
+    else log.push('tasta ' + e.keyCode);
+    show();
+  });
+  document.getElementById('btn').addEventListener('click', function () { next('clic'); });
+  setInterval(show, 500);
+  show();
+})();
+</script>
+</body>
+</html>
