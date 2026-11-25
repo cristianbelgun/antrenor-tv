@@ -116,13 +116,42 @@ async function offlineBanner(browser, base) {
   await page.close();
 }
 
+async function historyPage(browser, base) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const api = { ops: [], sets: [], remote: {
+    workouts: [{ id: 'w1', type: 'A', startedAt: '2026-11-25T18:00:00.000Z', finishedAt: '2026-11-25T18:44:00.000Z' }],
+    sets: [
+      { id: 's1', workoutId: 'w1', type: 'A', exerciseId: 'pushup', exerciseName: 'Flotări', setIndex: 1, value: 12, unit: 'reps', method: 0, at: '2026-11-25T18:10:00.000Z' },
+      { id: 's2', workoutId: 'w1', type: 'A', exerciseId: 'pushup', exerciseName: 'Flotări', setIndex: 2, value: 11, unit: 'reps', method: 0, at: '2026-11-25T18:13:00.000Z' },
+      { id: 's3', workoutId: 'w1', type: 'A', exerciseId: 'plank', exerciseName: 'Plank', setIndex: 1, value: 40, unit: 'seconds', method: 0, at: '2026-11-25T18:40:00.000Z' }
+    ], state: null } };
+  await fakeApi(page, api);
+  await page.goto(base + '/istoric.html');
+  await page.fill('#key', 'k');
+  await page.click('#go');
+  await page.waitForSelector('.workout');
+  const t = await page.locator('body').innerText();
+  assert.match(t, /Flotări/);
+  assert.match(t, /12 · 11/);
+  assert.match(t, /40 s/);
+  assert.match(t, /miercuri, 25 noiembrie/);
+  await page.screenshot({ path: path.join(OUT, 'e2e-8-istoric.png') });
+  // a wrong key shows an error and asks again
+  api.forbidGet = true;
+  await page.evaluate(() => { localStorage.setItem('at.secret', 'bad'); });
+  await page.reload();
+  await page.waitForSelector('#key');
+  assert.match(await page.locator('body').innerText(), /Cheie greșită/);
+  await page.close();
+}
+
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const srv = await serve();
   const base = 'http://127.0.0.1:' + srv.address().port;
   const browser = await chromium.launch();
   let failed = false;
-  for (const [name, fn] of [['workout A end to end', workoutA], ['offline banner', offlineBanner]].concat(global.EXTRA_E2E || [])) {
+  for (const [name, fn] of [['workout A end to end', workoutA], ['offline banner', offlineBanner], ['phone history page', historyPage]]) {
     try { await fn(browser, base); console.log('ok -', name); }
     catch (e) { failed = true; console.log('not ok -', name, '\n', e && e.stack || e); }
   }

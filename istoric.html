@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Istoric antrenamente</title>
+<style>
+  :root {
+    --bg: #f3f5f1; --card: #ffffff; --ink: #1d221f; --muted: #5d665f; --line: #dde2db; --accent: #4c7a12; --warn: #a4590b;
+    --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+    --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111513; --card: #1b211e; --ink: #f1f4ef; --muted: #93a097; --line: #2a312d; --accent: #c6f05a; --warn: #f2b84b; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 var(--body); }
+  main { max-width: 640px; margin: 0 auto; padding: 24px max(16px, env(safe-area-inset-right)) 48px max(16px, env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-family: var(--display); font-size: 2.2rem; line-height: 1; margin: 0; }
+  .muted { color: var(--muted); }
+  form { display: flex; flex-direction: column; gap: 10px; background: var(--card); padding: 16px; border-radius: 12px; }
+  label { font-weight: 600; }
+  input { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  button { font: inherit; font-weight: 600; padding: 10px 14px; border-radius: 8px; border: 0; background: var(--accent); color: #111513; }
+  .err { color: var(--warn); font-weight: 600; }
+  .workout { background: var(--card); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .whead { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  .whead b { font-family: var(--display); font-size: 1.4rem; }
+  .row { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding-top: 6px; }
+  .row span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .open { color: var(--warn); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Istoric antrenamente</h1>
+  <div id="out"><p class="muted">Se încarcă…</p></div>
+</main>
+<script>
+(function () {
+  var DAYS = ['duminică', 'luni', 'marți', 'miercuri', 'joi', 'vineri', 'sâmbătă'];
+  var MONTHS = ['ianuarie', 'februarie', 'martie', 'aprilie', 'mai', 'iunie', 'iulie', 'august', 'septembrie', 'octombrie', 'noiembrie', 'decembrie'];
+  var out = document.getElementById('out');
+
+  function esc(v) { return String(v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function getKey() { try { return localStorage.getItem('at.secret') || ''; } catch (e) { return ''; } }
+  function setKey(k) { try { localStorage.setItem('at.secret', k); } catch (e) { /* only for this visit */ } }
+
+  function askKey(error) {
+    out.innerHTML = '<form id="f">' + (error ? '<div class="err">' + esc(error) + '</div>' : '') +
+      '<label for="key">Cheia de acces</label><input id="key" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+      '<button id="go" type="submit">Arată istoricul</button><span class="muted">O introduci o singură dată pe acest telefon.</span></form>';
+    document.getElementById('f').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var k = document.getElementById('key').value.trim();
+      if (!k) return;
+      setKey(k);
+      load(k);
+    });
+  }
+
+  function dayLabel(iso) { var d = new Date(iso); return DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; }
+
+  function show(data) {
+    var ws = (data.workouts || []).slice().sort(function (a, b) { return a.startedAt < b.startedAt ? 1 : -1; });
+    if (!ws.length) { out.innerHTML = '<p class="muted">Niciun antrenament salvat încă.</p>'; return; }
+    out.innerHTML = ws.map(function (w) {
+      var sets = (data.sets || []).filter(function (s) { return s.workoutId === w.id; });
+      var order = [], by = {};
+      sets.sort(function (a, b) { return a.at < b.at ? -1 : 1; }).forEach(function (s) {
+        if (!by[s.exerciseId]) { by[s.exerciseId] = { name: s.exerciseName || s.exerciseId, unit: s.unit, vals: [] }; order.push(s.exerciseId); }
+        by[s.exerciseId].vals[s.setIndex - 1] = s.value;
+      });
+      var mins = w.finishedAt ? Math.max(1, Math.round((new Date(w.finishedAt) - new Date(w.startedAt)) / 60000)) : null;
+      return '<section class="workout"><div class="whead"><b>Antrenamentul ' + esc(w.type) + '</b><span class="muted">' + esc(dayLabel(w.startedAt)) +
+        (mins ? ' · ' + mins + ' min' : '') + '</span></div>' +
+        (w.finishedAt ? '' : '<span class="open">Neterminat</span>') +
+        order.map(function (id) {
+          var e = by[id], suffix = e.unit === 'seconds' ? ' s' : '';
+          return '<div class="row"><span>' + esc(e.name) + '</span><span>' +
+            e.vals.filter(function (v) { return v !== undefined; }).map(function (v) { return esc(v) + suffix; }).join(' · ') + '</span></div>';
+        }).join('') + '</section>';
+    }).join('');
+  }
+
+  function load(k) {
+    out.innerHTML = '<p class="muted">Se încarcă…</p>';
+    fetch('api.php?action=all&secret=' + encodeURIComponent(k), { cache: 'no-store' })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+      .then(function (r) {
+        if (r.status === 403) { setKey(''); askKey('Cheie greșită'); return; }
+        if (!r.body || !r.body.ok) throw new Error('bad');
+        show(r.body);
+      })
+      .catch(function () { out.innerHTML = '<p class="err">Nu pot încărca istoricul. Verifică internetul și reîncarcă pagina.</p>'; });
+  }
+
+  var k = getKey();
+  if (k) load(k); else askKey('');
+})();
+</script>
+</body>
+</html>
