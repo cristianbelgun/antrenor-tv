@@ -1,0 +1,24 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ascultare: muzică și semnale</title>
+<!-- Not shipped. Open locally and press any key to hear 16 bars of music, cues and a tempo. -->
+<body style="background:#111513;color:#f1f4ef;font:20px sans-serif;padding:40px">
+<p>Apasă orice tastă pentru a porni. <span id="st"></span></p>
+<script src="../js/program.js"></script>
+<script src="../js/tempo.js"></script>
+<script src="../js/music.js"></script>
+<script src="../js/audio.js"></script>
+<script>
+  function run() {
+    AT.audio.init();
+    AT.audio.setScene('exercise');
+    AT.audio.startTempo(AT.tempo.forExercise('goblet-squat', 1));
+    setTimeout(function () { AT.audio.signal('short'); }, 4000);
+    setTimeout(function () { AT.audio.stopTempo(); AT.audio.setScene('rest'); AT.audio.signal('double'); }, 32000);
+    setTimeout(function () { AT.audio.signal('long'); AT.audio.setScene('summary'); }, 48000);
+    setInterval(function () { document.getElementById('st').textContent = JSON.stringify(AT.audio.state()); }, 500);
+  }
+  document.addEventListener('keydown', function once() { document.removeEventListener('keydown', once); run(); });
+  if (location.hash === '#auto') run();
+</script>
+</body>
