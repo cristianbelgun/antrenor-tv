@@ -1,6 +1,7 @@
 <?php
 // Antrenor TV: salvează istoricul antrenamentelor (PHP 7.4+).
 // GET  api.php?action=all&secret=...      -> {ok, workouts, sets, state}
+// GET  api.php?action=music&secret=...    -> {ok, files}  (MP3s in muzica/)
 // POST api.php  body: {"secret": "...", "ops": [{"kind": "set|workout|state", "data": {...}}]}
 
 header('Content-Type: application/json; charset=utf-8');
@@ -68,6 +69,20 @@ $method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET'
 if ($method === 'GET') {
     if (!authorized(isset($_GET['secret']) ? $_GET['secret'] : null, $secret)) {
         respond(403, ['ok' => false, 'error' => 'unauthorized']);
+    }
+    if (isset($_GET['action']) && $_GET['action'] === 'music') {
+        // Optional MP3s in muzica/ next to the app (top level only, no hidden files).
+        $files = [];
+        $musicDir = __DIR__ . '/muzica';
+        if (is_dir($musicDir)) {
+            foreach (scandir($musicDir) as $f) {
+                if ($f[0] !== '.' && is_file($musicDir . '/' . $f) && strtolower(substr($f, -4)) === '.mp3') {
+                    $files[] = $f;
+                }
+            }
+        }
+        sort($files, SORT_STRING);
+        respond(200, ['ok' => true, 'files' => $files]);
     }
     $h = readHistory($historyFile);
     respond(200, ['ok' => true, 'workouts' => $h['workouts'], 'sets' => $h['sets'], 'state' => $h['state']]);

@@ -45,6 +45,16 @@ Dacă în colțul din dreapta sus apare „Fără conexiune, salvez pe televizor
 2. Scrie cheia secretă o singură dată. Telefonul o ține minte.
 3. Vezi toate antrenamentele, cele mai noi primele, cu repetările fiecărei serii.
 
+## 6. Muzica ta (opțional)
+
+Aplicația are muzică proprie, generată pe loc. Dacă vrei melodiile tale:
+
+1. În **File Manager**, deschide folderul `antrenor/muzica`.
+2. Apasă **Upload** și alege fișiere `.mp3`, oricâte.
+3. La următorul antrenament se redau ele, în ordine aleatorie, în locul muzicii generate.
+
+Ca să revii la muzica generată, șterge toate fișierele `.mp3` din `antrenor/muzica`. Volumul îl schimbi din **▲▼** în timpul seriei sau al încălzirii.
+
 ## Bine de știut
 
 - Istoricul se salvează pe hosting, în fișierul `antrenor/data/history.json`. Folderul `data` nu e accesibil de pe internet.

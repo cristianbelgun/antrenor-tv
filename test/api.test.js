@@ -95,3 +95,16 @@ test('corrupt history file is not overwritten', async () => {
   assert.strictEqual(r.status, 500);
   assert.strictEqual(fs.readFileSync(histFile(), 'utf8'), '{"workouts":[{"id":"w1"');
 });
+
+test('music list: only top-level .mp3 files, sorted', async () => {
+  const m = path.join(dir, 'muzica');
+  fs.mkdirSync(path.join(m, 'sub'), { recursive: true });
+  for (const f of ['b.mp3', 'A.MP3', 'x.txt', '.hidden.mp3', 'sub/c.mp3']) fs.writeFileSync(path.join(m, f), 'x');
+  const r = await fetch(URL_ + '?action=music&secret=test-secret');
+  assert.deepStrictEqual(await r.json(), { ok: true, files: ['A.MP3', 'b.mp3'] });
+  const bad = await fetch(URL_ + '?action=music&secret=nope');
+  assert.strictEqual(bad.status, 403);
+  fs.rmSync(m, { recursive: true });
+  const empty = await fetch(URL_ + '?action=music&secret=test-secret');
+  assert.deepStrictEqual(await empty.json(), { ok: true, files: [] });
+});

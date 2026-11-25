@@ -1,0 +1,3 @@
+Pune aici fișiere .mp3 dacă vrei muzica ta în timpul antrenamentului.
+Se redau în ordine aleatorie, în locul muzicii generate de aplicație.
+Șterge toate fișierele .mp3 de aici ca să revii la muzica generată.
