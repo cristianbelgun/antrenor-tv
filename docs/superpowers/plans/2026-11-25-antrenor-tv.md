@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A static web app for an LG webOS TV that guides the user's A/B strength workouts with animated stick figures, a rest timer and per-set rep logging, with history kept in a Google Sheet.
+**Goal:** A static web app for an LG webOS TV that guides the user's A/B strength workouts with animated stick figures, a rest timer and per-set rep logging, with history kept by a small PHP endpoint on the user's cPanel hosting.
 
-**Architecture:** Plain HTML/CSS/JS files with no build step, served by GitHub Pages. The logic lives in pure modules (program data, schedule, progression, workout state machine, sync store), each attached to `window.AT` and also exported for Node tests. The UI is a thin renderer plus key handler over the state machine. History goes to `localStorage` first, then to a Google Apps Script web app that writes rows into a Google Sheet.
+**Architecture:** Plain HTML/CSS/JS files with no build step, uploaded as a zip to the user's cPanel hosting. The logic lives in pure modules (program data, schedule, progression, workout state machine, sync store), each attached to `window.AT` and also exported for Node tests. The UI is a thin renderer plus key handler over the state machine. History goes to `localStorage` first, then to `api.php` (same origin), which stores it in a JSON file. `istoric.html` shows the history on a phone.
 
-**Tech Stack:** Vanilla JS (ES2017, classic scripts, no ES modules, no bundler), CSS with container-relative units, SVG figures, Node 22 `node:test` for unit tests, Playwright (pre-installed) for the end-to-end smoke test, and Google Apps Script for the Sheet backend.
+**Tech Stack:** Vanilla JS (ES2017, classic scripts, no ES modules, no bundler), CSS with container-relative units, SVG figures, Node 22 `node:test` for unit tests, Playwright (pre-installed) for the end-to-end smoke test, and PHP 7.4+ for the backend (tested with local PHP 8.3 `php -S`).
 
 **Spec:** `docs/superpowers/specs/2026-11-25-antrenor-tv-design.md` (approved sketches: `docs/superpowers/specs/2026-11-25-schite-ecrane.html`)
 
@@ -20,8 +20,10 @@
 - Warm-up timer: 6:00.
 - Training days: Monday, Wednesday, Friday (`Date.getDay()` 1, 3, 5).
 - First 14 days after `firstWorkoutAt`: 2 sets per exercise.
-- Sheet sync: GET timeout 5 s; the offline banner text is `Fără conexiune, salvez pe televizor`.
-- No claude.ai dependency of any kind (Cloudflare blocks the TV).
+- Server sync: GET timeout 5 s; the offline banner text is `Fără conexiune, salvez pe televizor`.
+- No claude.ai dependency of any kind (Cloudflare blocks the TV). No Google dependency.
+- PHP must stay 7.4-compatible: no `match`, no named arguments, no `str_contains`, no union types, no readonly or enums.
+- Never ask for or store hosting or FTP passwords. The user uploads the zip.
 - Third-party exercise images are not used. All figures are drawn procedurally.
 - Every Node test runs with `node --test test/`.
 
@@ -40,19 +42,23 @@
 ```
 index.html            stage markup + script tags in dependency order
 css/app.css           tokens, stage, the 7 screens
-js/config.js          AT.config = { sheetUrl, secret } (filled in Task 9)
+js/config.js          AT.config = { secret } (real value injected only into the zip, Task 10)
 js/program.js         exercises + workouts (data only)
 js/schedule.js        which workout, set counts, week number, resume / stale
 js/progression.js     last values, top, method level, suggestion copy, advance
 js/session.js         pure state machine: next(state, action, ctx) -> {state, effects}
-js/store.js           localStorage + outbox + Sheet sync
+js/store.js           localStorage + outbox + server sync
 js/figures.js         skeleton, poses for 11 exercises, SVG renderer
 js/ui.js              render(state) per screen + key mapping + effects runner
 js/app.js             bootstrap: load store, start ticking, wire keys
-apps-script/Code.gs   Sheet backend (doGet/doPost + pure handlers)
+api.php               backend (GET all / POST ops), reads config.php
+config.sample.php     <?php return ['secret' => 'SCHIMBĂ-MĂ']; (copied to config.php at install)
+data/.htaccess        Require all denied
+istoric.html          phone history page
+scripts/build-zip.sh  produces dist/antrenor-tv.zip
 test/*.test.js        node:test unit tests
 test/e2e.spec.js      Playwright smoke (run with node, not @playwright/test)
-docs/configurare.md   Romanian setup guide (GitHub Pages + Sheet)
+docs/configurare.md   Romanian setup guide (cPanel upload)
 ```
 
 Module pattern for every `js/*.js` file, so the same file loads in the browser and in Node:
@@ -216,7 +222,7 @@ Transitions (anything not listed is a no-op):
 - [ ] **Step 4: Run** and expect PASS.
 - [ ] **Step 5: Commit** `feat: workout state machine`
 
-### Task 5: Store and sync client
+### Task 5: Store and server sync client
 
 **Files:** Create `js/store.js`. Test: `test/store.test.js`.
 
@@ -224,7 +230,7 @@ Transitions (anything not listed is a no-op):
 - Produces:
   - `AT.store.newId() -> string`
   - `AT.store.create({ storage, fetchFn, url, secret, timeoutMs = 5000 }) -> Store`
-  - `Store.load() -> Promise<{ history: History, online: boolean }>`: reads local data and calls `GET url?secret=…&action=all` (with timeout). On success it merges remote and local by id (a local workout with `finishedAt` wins over a remote one without it) and saves the merge locally. On failure it returns local only with `online:false`. Before returning it applies `AT.schedule.closeStale` and queues those workouts.
+  - `Store.load() -> Promise<{ history: History, online: boolean }>`: reads local data and calls `GET url?action=all&secret=…` (with timeout). On success it merges remote and local by id (a local workout with `finishedAt` wins over a remote one without it) and saves the merge locally. On failure it returns local only with `online:false`. Before returning it applies `AT.schedule.closeStale` and queues those workouts.
   - `Store.saveWorkout(w)`, `Store.saveSet(s)`, `Store.saveState(st)`: write locally and push `{kind:'workout'|'set'|'state', data}` to the outbox (also in storage). They return immediately and trigger `flush()` in the background.
   - `Store.flush() -> Promise<boolean>`: `POST url`, `Content-Type: text/plain;charset=utf-8`, body `JSON.stringify({secret, ops})`. It clears the outbox only on a response `{ok:true}`. Only one flush runs at a time; if another is requested meanwhile, it runs again after.
   - `Store.online: boolean` (last known)
@@ -239,38 +245,34 @@ Transitions (anything not listed is a no-op):
 - [ ] **Step 2: Run** and expect FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** and expect PASS.
-- [ ] **Step 5: Commit** `feat: local store with Sheet sync outbox`
+- [ ] **Step 5: Commit** `feat: local store with server sync outbox`
 
-### Task 6: Google Apps Script backend
+### Task 6: PHP backend
 
-**Files:** Create `apps-script/Code.gs`. Test: `test/apps-script.test.js` (loads `Code.gs` with `vm.runInNewContext` and a fake `SpreadsheetApp`, `ContentService` and `PropertiesService`).
+**Files:** Create `api.php`, `config.sample.php`, `data/.htaccess` (`Require all denied` plus `Deny from all` for Apache 2.2). Test: `test/api.test.js`. It spawns `php -S 127.0.0.1:<free port>` in a temp copy of `api.php` with a `config.php` returning `['secret' => 'test-secret']`, then talks HTTP with `fetch`.
 
 **Interfaces:**
-- Consumes: the POST and GET contract from Task 5.
-- Produces, in the Apps Script global scope:
-  - `doGet(e)` and `doPost(e)`: thin wrappers that return `ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON)`.
-  - `handleGet(params, ss)` → `{ok:true, workouts, sets, state}`, or `{ok:false, error:'unauthorized'}`.
-  - `handlePost(body, ss)` → `{ok:true, applied:n}`, or unauthorized.
-  - The secret is read from `PropertiesService.getScriptProperties().getProperty('SECRET')`.
-- Sheets (created if missing, header row as given):
-  - `Serii`: `id, data_ora, antrenament_id, tip, exercitiu_id, exercitiu, seria, valoare, unitate, metoda`, where `unitate` is written as `repetari` or `secunde`.
-  - `Antrenamente`: `antrenament_id, tip, inceput, sfarsit`
-  - `Stare`: cell A1 holds the State JSON.
-- Behavior:
-  - A `set` op whose id already exists is ignored.
-  - A `workout` op updates the row with the same id, or appends one.
-  - A `state` op overwrites A1.
-  - Wrap writes in `LockService.getScriptLock()` with a 10 s wait.
+- Consumes: the contract from Task 5 (spec §4).
+- Produces:
+  - `GET api.php?action=all&secret=S` → `{"ok":true,"workouts":[],"sets":[],"state":null}`
+  - `POST api.php` with body `{"secret":S,"ops":[…]}` → `{"ok":true,"applied":n}`, where `applied` counts ops that changed data.
+  - A wrong or missing secret → HTTP 403 with `{"ok":false,"error":"unauthorized"}`. A bad body → 400 with `{"ok":false,"error":"bad_request"}`.
+  - Every response carries `Content-Type: application/json; charset=utf-8` and `Cache-Control: no-store`.
+  - Storage: `data/history.json`, created on first write (`mkdir` if needed). Read-modify-write runs under `flock(LOCK_EX)` on `data/.lock`, writes `history.json.tmp`, then `rename`. The secret is compared with `hash_equals`.
+  - Body limit is 256 KB. Each op is validated: `kind` must be in the set, `data.id` a non-empty string ≤ 64 chars, and `state` an object.
 
 - [ ] **Step 1: Write failing tests**:
-  - The wrong secret returns unauthorized and writes nothing.
-  - Two `set` ops produce 2 rows. `duplicate set id is ignored`: posting the same op again keeps 2 rows.
-  - The workout op with `finishedAt` updates the existing row instead of appending.
-  - `handleGet` round-trips what was posted (values as numbers, units mapped back to `reps` and `seconds`).
-- [ ] **Step 2: Run** and expect FAIL.
-- [ ] **Step 3: Implement** (Apps Script V8, plain functions, no `require`).
-- [ ] **Step 4: Run** and expect PASS.
-- [ ] **Step 5: Commit** `feat: Apps Script backend for the Sheet`
+  - The wrong secret gives 403 on GET and POST, and the file is unchanged.
+  - POST of two `set` ops gives `applied:2`, and GET returns them.
+  - `duplicate set id is ignored`: re-posting the same ops gives `applied:0` and still 2 sets.
+  - A workout op with `finishedAt` replaces the earlier one with the same id.
+  - A state op overwrites `state`.
+  - A malformed JSON body gives 400.
+  - Ten POSTs in parallel with distinct set ids end with 10 sets (lock works).
+- [ ] **Step 2: Run** `node --test test/api.test.js` and expect FAIL.
+- [ ] **Step 3: Implement `api.php`** (PHP 7.4-compatible, single file, `require __DIR__.'/config.php'`; if it is missing, return 500 with `{"ok":false,"error":"missing_config"}`).
+- [ ] **Step 4: Run** and expect PASS. Then run `php -l api.php` and expect `No syntax errors`.
+- [ ] **Step 5: Commit** `feat: PHP backend for workout history`
 
 ### Task 7: Figures
 
@@ -310,7 +312,7 @@ Biomechanics each animation must show (from the spec's tips):
 
 ### Task 8: UI, styling, bootstrap and end-to-end test
 
-**Files:** Create `index.html`, `css/app.css`, `js/config.js` (`AT.config = { sheetUrl: '', secret: '' }`), `js/ui.js`, `js/app.js`. Test: `test/e2e.spec.js`.
+**Files:** Create `index.html`, `css/app.css`, `js/config.js` (`AT.config = { secret: '' }`), `js/ui.js`, `js/app.js`. Test: `test/e2e.spec.js`.
 
 **Interfaces:**
 - Consumes: everything above.
@@ -319,9 +321,9 @@ Biomechanics each animation must show (from the spec's tips):
   - `AT.ui.keyToAction(e: KeyboardEvent) -> action|null`: 37/38/39/40 → LEFT/UP/RIGHT/DOWN; 13 → OK; 461, 27 or 8 → BACK. Calls `preventDefault` on all of them.
   - `AT.ui.runEffects(effects, store)`: save effects go to the store. `beep` uses Web Audio: a short beep is 880 Hz for 150 ms; the long one is 660 Hz for 600 ms, and the AudioContext is created on the first key press. `fullscreen` calls `requestFullscreen` and ignores rejection.
 - `app.js`:
-  - Load the store, then `home()`, render, and `setInterval` TICK every 250 ms (re-render only when the displayed second changes).
+  - Load the store (`url = 'api.php'`, a relative path), then `home()`, render, and `setInterval` TICK every 250 ms (re-render only when the displayed second changes).
   - Request a wake lock, ignoring failure.
-  - Empty `sheetUrl` means local-only mode with the offline banner.
+  - An empty `secret` means local-only mode with the offline banner.
 - Screens follow the sketch markup and CSS (`docs/superpowers/specs/2026-11-25-schite-ecrane.html`): the `.tv` stage fills the viewport at 16:9 (letterboxed) and `cqw` units carry over unchanged. Screen copy is taken from the sketch, plus:
   - Home on a rest day: `Azi: recuperare` with the line `Mers 25–35 min și stretching ușor`, and a secondary button `Fă totuși antrenamentul ${type}`.
   - Home with a resumable workout: `Continuă antrenamentul ${type} (exercițiul ${n}, seria ${k})` plus `Începe din nou`.
@@ -332,7 +334,7 @@ Biomechanics each animation must show (from the spec's tips):
   - Summary: as in the sketch. Diff vs `lastSameType`, and the head line `+N repetări față de data trecută` (use `−N` when negative, `La fel ca data trecută` when 0, and `Primul antrenament ${type}. Bravo!` when there is no previous one). Plank seconds are excluded from the totals.
   - Offline banner, top right, small: `Fără conexiune, salvez pe televizor`.
 
-- [ ] **Step 1: Write the failing e2e test** `test/e2e.spec.js`. It serves the repo with a tiny `http.createServer` static handler, then launches Playwright Chromium at 1920×1080. It routes the Sheet URL (set `AT.config` through `page.addInitScript`) to a fake that records POSTs, with a fixed clock via `page.clock.install({time: new Date('2026-11-25T18:00:00')})`. It then drives one whole Workout A with the keyboard:
+- [ ] **Step 1: Write the failing e2e test** `test/e2e.spec.js`. It serves the repo with a tiny `http.createServer` static handler, then launches Playwright Chromium at 1920×1080. It routes `**/api.php*` to a fake that records POSTs (set `AT.config.secret` through `page.addInitScript`), with a fixed clock via `page.clock.install({time: new Date('2026-11-25T18:00:00')})`. It then drives one whole Workout A with the keyboard:
   - home shows `Antrenamentul A`
   - Enter starts the warm-up; Enter skips it
   - the exercise shows `Genuflexiuni cu gantera` and `Seria 1 din 2`
@@ -345,19 +347,33 @@ Biomechanics each animation must show (from the spec's tips):
 - [ ] **Step 4: Run** `node test/e2e.spec.js` and expect PASS. Then run `node --test test/` and expect PASS. Look at the screenshots and compare them with the sketch.
 - [ ] **Step 5: Commit** `feat: TV screens, key handling and bootstrap`
 
-### Task 9: Deployment and setup guide (needs the user)
+### Task 9: Phone history page
 
-**Files:** Create `docs/configurare.md` (in Romanian). Modify `js/config.js`.
+**Files:** Create `istoric.html` (inline CSS/JS, same tokens as the app but light/dark theme-aware, phone-first). Test: extend `test/e2e.spec.js` with a second scenario.
 
-- [ ] **Step 1: Write `docs/configurare.md`** with numbered steps for a non-programmer:
-  - Create the Sheet, then Extensions → Apps Script.
-  - Paste `apps-script/Code.gs`.
-  - Project Settings → Script properties → `SECRET` = a value I generate (`openssl rand -hex 24`, given to the user in chat, never committed).
-  - Deploy → New deployment → Web app, Execute as *Me*, access *Anyone*. Copy the URL.
-  - Make a GitHub account and a repo `antrenor-tv`; Settings → Pages → branch `main`, folder `/`.
+**Interfaces:**
+- Consumes: `GET api.php?action=all&secret=…`
+- Produces: a page that asks once for the key (`Cheia de acces`, stored in `localStorage['at.secret']`, with try/catch). It lists workouts newest first, each with its date (`ro-RO`, e.g. `miercuri, 25 noiembrie`), the type, the duration, and per exercise its values joined with ` · ` (plank values get ` s`). On a 403 it shows `Cheie greșită` and asks again.
+
+- [ ] **Step 1: Write the failing e2e scenario:** with a fake `api.php` returning one finished A with 2 sets of pushups `[12, 11]`, the page shows `Flotări` and `12 · 11`. A 403 shows `Cheie greșită`.
+- [ ] **Step 2: Run** `node test/e2e.spec.js` and expect FAIL.
+- [ ] **Step 3: Implement `istoric.html`.**
+- [ ] **Step 4: Run** and expect PASS.
+- [ ] **Step 5: Commit** `feat: phone history page`
+
+### Task 10: Packaging and cPanel install (needs the user)
+
+**Files:** Create `scripts/build-zip.sh` and `docs/configurare.md` (Romanian).
+
+- [ ] **Step 1: Write `scripts/build-zip.sh`.** It zips `index.html istoric.html api.php config.sample.php css/ js/ data/.htaccess` into `dist/antrenor-tv.zip`, excluding tests, docs and `node_modules`. It takes the secret as `$1`, writes it into `js/config.js` and `config.php` inside the zip only (never into the repo), and fails if `$1` is empty. Add `dist/` and `config.php` to `.gitignore`.
+- [ ] **Step 2: Verify:** `bash scripts/build-zip.sh testkey && unzip -l dist/antrenor-tv.zip` lists exactly those files plus `config.php`, and `unzip -p dist/antrenor-tv.zip js/config.js` contains `testkey`.
+- [ ] **Step 3: Write `docs/configurare.md`** with numbered steps for a non-programmer:
+  - Target address: **`https://dev.cschimia.ro/antrenor/`** (subfolder `antrenor/` in the document root of the `dev.cschimia.ro` subdomain, so nothing else there is touched). In cPanel → Domains, find that document root.
+  - File Manager → open its folder → Upload `antrenor-tv.zip` → Extract.
+  - Check that PHP is 7.4 or newer (cPanel → Select PHP Version / MultiPHP Manager).
+  - Open `https://dev.cschimia.ro/antrenor/api.php?action=all&secret=<cheia>` and expect a line starting with `{"ok":true`.
   - On the TV: open the address in the LG browser and add it to favourites.
-- [ ] **Step 2:** Ask the user for the Apps Script URL and the GitHub repo. Attach the repo with `add_repo` (push access). Put `sheetUrl` and `secret` in `js/config.js` (the repo's `config.js` holds them, which the spec accepts: the secret only blocks stray writes).
-- [ ] **Step 3: Verify the backend from here:** `curl -sL "<sheetUrl>?secret=<secret>&action=all"` returns `{"ok":true,...}`. If the host is blocked, ask the user to open the URL on their phone instead.
-- [ ] **Step 4: Push** to `main` and wait for Pages. `curl -sI https://<user>.github.io/antrenor-tv/` returns 200.
-- [ ] **Step 5: Ask the user** to open the page on the TV, do warm-up plus one set, then check that a row appears in the `Serii` sheet. Record the outcome and anything that renders wrong on the TV.
-- [ ] **Step 6: Commit** `docs: setup guide; config for deployment`
+  - On the phone: `/istoric.html`, then enter the key.
+- [ ] **Step 4:** Generate the real key (`openssl rand -hex 24`), build the zip, and send the zip plus the key to the user in chat. The key is not committed.
+- [ ] **Step 5:** Ask the user to install it, open the `api.php` check link, then on the TV do warm-up plus one set and confirm the set appears in `istoric.html` on the phone. Verify with `curl -s "https://dev.cschimia.ro/antrenor/api.php?action=all&secret=<cheia>"` from here (if the environment's network blocks the host, ask the user to open the link on the phone). Record what renders wrong on the TV.
+- [ ] **Step 6: Commit** `docs: cPanel setup guide and zip packaging`

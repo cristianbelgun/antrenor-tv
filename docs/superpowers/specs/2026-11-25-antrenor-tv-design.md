@@ -22,7 +22,7 @@ De ce: utilizatorul (50 de ani, 64 kg, 164 cm) se antrenează acasă cu greutate
 - Data viitoare, la fiecare exercițiu se vede ce s-a făcut ultima dată.
 - Aplicația știe singură ce antrenament urmează (A sau B).
 - Ecranul final compară cu antrenamentul anterior de același tip.
-- Istoricul nu se pierde dacă se resetează televizorul sau se șterg datele browserului.
+- Istoricul nu se pierde dacă se resetează televizorul sau se șterg datele browserului, și se poate vedea pe telefon.
 
 **Non-obiective (v1)**
 - Evidența alimentației, a greutății corporale sau a zilelor de recuperare.
@@ -58,26 +58,28 @@ De ce: utilizatorul (50 de ani, 64 kg, 164 cm) se antrenează acasă cu greutate
 
 **Ales de utilizator: varianta 3.** Faza 1 (acest document) este pagina web.
 
-### Găzduire și salvarea istoricului (aleasă de utilizator după testul pe TV)
+### Găzduire și salvarea istoricului
 
-Prima propunere (Artifact claude.ai cu bază de date) a căzut, pentru că claude.ai nu trece de verificarea Cloudflare pe TV. Variantele noi:
+Istoria deciziei:
+1. Prima propunere (Artifact claude.ai cu bază de date) a căzut: claude.ai nu trece de verificarea Cloudflare pe TV.
+2. Utilizatorul a ales apoi GitHub Pages + Google Sheets.
+3. Apoi a cerut ca aplicația să stea **pe contul lui de hosting (cPanel)**.
 
-| | Variantă | Plusuri | Minusuri |
-|---|---|---|---|
-| 1 | Totul în Google: Apps Script servește pagina și scrie în Google Sheets | Un singur cont (Google) | Adresă lungă; pagina rulează în cadrul Google |
-| **2** | **Pagina pe GitHub Pages, istoricul în Google Sheets prin Apps Script** | Adresă scurtă, pagină curată și rapidă | Cont GitHub în plus |
-| 3 | Istoric doar în browserul TV | Cel mai simplu | Istoricul se pierde la reset (încalcă un obiectiv) |
+Pe hosting, variantele pentru istoric au fost:
+- A. Google Sheets: tabel vizibil pe telefon, dar cu configurare Google.
+- **B. Script PHP pe același hosting** (recomandat): fără Google, totul într-un loc, plus o pagină de istoric pentru telefon.
 
-**Ales de utilizator: varianta 2.**
+**Ales: B.** Utilizatorul a confirmat cPanel după recomandare. Se poate reveni la A, pentru că pagina vorbește cu backend-ul printr-un contract mic și înlocuibil.
 
-- **Pagina:** fișiere statice (HTML/CSS/JS) într-un repository GitHub al utilizatorului, publicate cu GitHub Pages (`https://<utilizator>.github.io/antrenor-tv/`). Utilizatorul își face cont GitHub, dacă nu are; eu scriu și public codul.
-- **Istoricul:** un Google Sheet în Drive-ul utilizatorului, cu un script Apps Script atașat, publicat ca aplicație web („Execute as: Me”, „Who has access: Anyone”). Scriptul primește seriile și returnează istoricul. Pagina îl apelează cu `fetch`.
-  - Scriere: `POST` cu corp `text/plain` (JSON în interior), ca să nu declanșeze preflight CORS.
-  - Citire: `GET` care returnează JSON.
-  - Scriptul verifică o **cheie secretă** din configurația paginii (lungă, aleatoare) și respinge cererile fără ea. Asta împiedică scrierile întâmplătoare.
-- **Copie locală și coadă:** fiecare serie se scrie întâi în `localStorage`, apoi se trimite. Ce nu a ajuns (TV fără internet) se retrimite la următoarea pornire. Scrierile sunt idempotente: fiecare serie are un id unic, iar scriptul ignoră duplicatele. La pornire istoricul se ia din Sheet; dacă Sheet-ul nu răspunde în 5 s, se folosește copia locală și apare discret „Fără conexiune, salvez pe televizor”.
-- **Configurarea Google** se face o singură dată, ghidată: utilizatorul creează Sheet-ul, lipește scriptul primit de la mine, apasă Deploy și îmi dă adresa. Pot pregăti eu Sheet-ul prin conectorul Google Drive / Sheets, dacă e de folos.
-- **Faza 2** (aplicație webOS cu pictogramă) rămâne posibilă: un pachet webOS care deschide adresa GitHub Pages.
+- **Pagina:** fișiere statice la **`https://dev.cschimia.ro/antrenor/`** (subfolder pe subdomeniul utilizatorului; subfolderul e decizia mea, ca să nu se atingă altceva de pe `dev`). Le urcă utilizatorul ca arhivă zip din File Manager-ul cPanel. Nu primesc niciodată parole de FTP sau de cont.
+- **Backend:** `api.php` în același folder, deci aceeași origine și fără CORS. Compatibil PHP 7.4+, fără extensii în afară de `json`.
+  - Datele stau în `data/history.json` (scris atomic: fișier temporar + `rename`, sub `flock`).
+  - Folderul `data/` e închis cu `.htaccess` (`Require all denied`).
+  - Contract: `GET api.php?action=all&secret=…` → `{ok, workouts, sets, state}`; `POST api.php` cu corp `text/plain` = JSON `{secret, ops:[{kind:'set'|'workout'|'state', data}]}` → `{ok, applied}`. Serii cu id existent sunt ignorate; antrenamentele se actualizează după id.
+  - **Cheia secretă** stă în `config.php` (pe server, lângă `api.php`) și în `js/config.js` (în pagină). Împiedică scrierile întâmplătoare.
+- **Pagina de istoric pentru telefon:** `istoric.html`. Afișează, cele mai noi primele, antrenamentele cu seriile lor, citite din `api.php`. Cheia o cere o singură dată și o ține în browserul telefonului.
+- **Copie locală și coadă:** fiecare serie se scrie întâi în `localStorage`, apoi se trimite. Ce nu a ajuns se retrimite la următoarea pornire; scrierile sunt idempotente (id unic pe serie). La pornire istoricul se ia de pe server; dacă serverul nu răspunde în 5 s, se folosește copia locală și apare discret „Fără conexiune, salvez pe televizor”.
+- **Faza 2** (aplicație webOS cu pictogramă) rămâne posibilă: un pachet webOS care deschide adresa de pe hosting.
 
 ## 5. Programul (date, din documentul utilizatorului)
 
@@ -147,19 +149,19 @@ Toate ecranele au 16:9, temă închisă, și se dimensionează proporțional cu 
 
 ## 8. Datele salvate
 
-În Google Sheet (foi separate), oglindite în `localStorage`:
+În `data/history.json` pe server, oglindit în `localStorage`:
 
-- foaia **Serii** (o linie pe serie; ușor de citit pe telefon): `id` (unic, generat pe TV), `data_ora`, `antrenament_id`, `tip` (A/B), `exercitiu_id`, `exercitiu` (numele afișat), `seria`, `valoare`, `unitate` (repetari/secunde), `metoda` (0 niciuna, 1 coborâre lentă, 2 pauză, 3 serie în plus).
-- foaia **Antrenamente**: `antrenament_id`, `tip`, `inceput`, `sfarsit` (gol dacă e neterminat).
-- foaia **Stare**: un singur rând JSON cu `{ firstWorkoutAt, progression: { <exerciseId>: { level: 0|1|2|3, extraSets: 0|1, plankTarget? } } }`. `firstWorkoutAt` servește regula primelor două săptămâni.
+- `workouts[]`: `{ id, type: "A"|"B", startedAt, finishedAt|null }`
+- `sets[]`: `{ id (unic, generat pe TV), workoutId, type, exerciseId, exerciseName, setIndex, value, unit: "reps"|"seconds", method: 0|1|2|3, at }`. `method`: 0 niciuna, 1 coborâre lentă, 2 pauză, 3 serie în plus.
+- `state`: `{ firstWorkoutAt, progression: { <exerciseId>: { level: 0|1|2|3, extraSets: 0|1, plankTarget? } } }`. `firstWorkoutAt` servește regula primelor două săptămâni.
 
-Fără greutate, pentru că ganterele sunt fixe. Structura permite mai târziu grafice și analiza de către Claude, dacă utilizatorul exportă sau partajează tabelul.
+Fără greutate, pentru că ganterele sunt fixe. Structura permite mai târziu grafice și analize.
 
 ## 9. Ce rămâne la latitudinea constructorului
 
 - Organizarea codului, bibliotecile (sau niciuna), dacă se folosește SVG sau canvas pentru figurine.
 - Sunetul bipului (Web Audio, pornit după prima apăsare).
 - Cererea de wake lock / ecran complet: se încearcă, iar refuzul se tolerează.
-- Codul exact al scriptului Apps Script și cum se generează cheia secretă.
+- Codul exact al `api.php` și cum se generează cheia secretă.
 - Detaliile vizuale în spiritul schițelor aprobate.
 - Testarea: pe desktop cu tastatura, care emulează telecomanda.
