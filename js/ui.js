@@ -33,6 +33,11 @@
     return '';
   }
 
+  function musicLine() {
+    var v = AT.audio.volume();
+    return 'Muzică: ' + (v === 0 ? 'oprită' : v + '%') + ' · schimbi din ▲▼ în timpul seriei';
+  }
+
   function homeHtml(s, h, now) {
     var type = s.nextType, ids = AT.program.WORKOUTS[type], st = h.state;
     var rows = ids.map(function (id) {
@@ -56,6 +61,7 @@
     return '<div class="top"><span>' + dateLabel(now) + ' · Săptămâna ' + AT.schedule.weekNumber(st, now) + '</span><span>~45 min</span></div>' +
       heading +
       '<div class="list num"><span class="h">Exercițiu</span><span class="h">Țintă</span><span class="h">Ultima dată</span>' + rows + '</div>' +
+      '<div class="sub music">' + musicLine() + '</div>' +
       '<div class="btns">' + btns.map(function (b, i) {
         return '<button class="btn' + (s.focus === i ? ' on' : '') + '" data-focus="' + i + '">' + esc(b) + '</button>';
       }).join('') + '</div>';
@@ -73,6 +79,7 @@
     var dots = '';
     for (var i = 1; i <= Math.max(planned, s.setIndex); i++) dots += '<i' + (i <= s.setIndex ? ' class="on"' : '') + '></i>';
     var sugg = AT.progression.suggestion(id, h.state);
+    var tempo = AT.tempo.forExercise(id, AT.progression.level(id, h.state));
     return '<div class="ex"><div class="anim" id="anim"><span class="tag">' + (id === 'lateral-raise' ? 'Vedere din față' : 'Vedere din lateral') + '</span></div>' +
       '<div class="info"><div class="top" style="justify-content:flex-start">Exercițiul ' + (s.exIndex + 1) + ' din ' + s.exIds.length + '</div>' +
       '<div class="big name">' + esc(e.name) + '</div>' +
@@ -81,6 +88,7 @@
       '<div class="prev num">Ultima dată: <b>' + valuesText(AT.progression.lastValues(id, h, s.workout.id)) + '</b></div>' +
       '<div class="tip">' + esc(e.tip) + '</div>' +
       (sugg ? '<div class="sugg">' + esc(sugg) + '</div>' : '') +
+      (tempo ? '<div class="ritm">' + esc(AT.tempo.text(tempo)) + '</div>' : '') +
       '</div></div>' +
       '<div class="hint">' + key('OK', 'am terminat seria') + key('◀ ▶', 'exercițiul anterior / următor') + key('Înapoi', 'ieși') + '</div>';
   }
@@ -154,7 +162,8 @@
 
   var mounted = { id: null, handle: null };
 
-  function render(rootEl, s, history, online, now) {
+  // fig: { tempo, startAt } for the exercise figure, set by app.js when the exercise screen is entered.
+  function render(rootEl, s, history, online, now, fig) {
     now = now || new Date();
     var h = history, html = '', cls = 'scr';
     switch (s.screen) {
@@ -182,7 +191,7 @@
         svg = rootEl.ownerDocument.createElementNS(SVGNS, 'svg');
         svg.setAttribute('aria-label', AT.program.exercise(exId).name);
         holder.appendChild(svg);
-        mounted = { id: exId, handle: AT.figures.mount(svg, exId) };
+        mounted = { id: exId, handle: AT.figures.mount(svg, exId, fig || {}) };
       }
     } else if (mounted.handle) {
       mounted.handle.stop();
@@ -201,35 +210,13 @@
     return { type: type };
   }
 
-  var audio = null;
-  function ensureAudio() {
-    if (audio) return audio;
-    try {
-      var Ctx = root.AudioContext || root.webkitAudioContext;
-      if (Ctx) audio = new Ctx();
-    } catch (e) { audio = null; }
-    return audio;
-  }
-  function beep(long) {
-    var a = ensureAudio();
-    if (!a) return;
-    try {
-      if (a.state === 'suspended') a.resume();
-      var o = a.createOscillator(), g = a.createGain(), t = a.currentTime, dur = long ? 0.6 : 0.15;
-      o.frequency.value = long ? 660 : 880;
-      g.gain.setValueAtTime(0.25, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      o.connect(g); g.connect(a.destination);
-      o.start(t); o.stop(t + dur);
-    } catch (e) { /* sound is optional */ }
-  }
-
   function runEffects(effects, store) {
     effects.forEach(function (e) {
       if (e.type === 'saveWorkout') store.saveWorkout(e.workout);
       else if (e.type === 'saveSet') store.saveSet(e.set);
       else if (e.type === 'saveState') store.saveState(e.state);
-      else if (e.type === 'beep') beep(e.long);
+      else if (e.type === 'beep') AT.audio.signal(e.kind);
+      else if (e.type === 'volume') { AT.audio.changeVolume(e.delta); showVolume(AT.audio.volume()); }
       else if (e.type === 'fullscreen') {
         try {
           var el = root.document.documentElement;
@@ -240,6 +227,16 @@
     });
   }
 
-  AT.ui = { render: render, keyToAction: keyToAction, runEffects: runEffects, ensureAudio: ensureAudio, mmss: mmss };
+  var volTimer = null;
+  function showVolume(pct) {
+    var el = root.document && root.document.getElementById('vol');
+    if (!el) return;
+    el.textContent = pct === 0 ? 'Muzică oprită' : '♪ ' + pct + '%';
+    el.hidden = false;
+    if (volTimer) clearTimeout(volTimer);
+    volTimer = setTimeout(function () { el.hidden = true; }, 2000);
+  }
+
+  AT.ui = { render: render, keyToAction: keyToAction, runEffects: runEffects, showVolume: showVolume, mmss: mmss };
   if (typeof module === 'object' && module.exports) module.exports = AT.ui;
 })(typeof window !== 'undefined' ? window : globalThis);

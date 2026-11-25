@@ -98,6 +98,7 @@ async function workoutA(browser, base) {
   await page.clock.runFor(1000);
   assert.strictEqual(await screen(page), 'summary');
   assert.match(await text(page), /Primul antrenament A/);
+  assert.strictEqual(await page.evaluate(() => AT.audio.state().mode), 'off', 'music stops on summary');
   await shot(page, 'e2e-7-summary');
 
   await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('at.outbox')).length === 0; } catch (e) { return false; } });
@@ -212,13 +213,60 @@ async function midnight(browser, base) {
   await page.close();
 }
 
+async function soundScenario(browser, base) {
+  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await fakeApi(page, { ops: [], sets: [] });
+  await page.clock.install({ time: new Date('2026-11-25T18:00:00') });
+  await page.addInitScript(() => {
+    window.AT = window.AT || {}; window.AT.config = { secret: 'k' };
+    if (!sessionStorage.getItem('seeded')) {
+      sessionStorage.setItem('seeded', '1');
+      localStorage.setItem('at.history', JSON.stringify({ workouts: [], sets: [],
+        state: { firstWorkoutAt: '2026-11-05T18:00:00.000Z', progression: { 'goblet-squat': { level: 1, extraSets: 0 } } } }));
+    }
+  });
+  await page.goto(base + '/index.html');
+  await page.waitForSelector('#app[data-screen="home"]');
+  assert.match(await text(page), /Muzică: 60% · schimbi din ▲▼ în timpul seriei/);
+  assert.strictEqual(await page.evaluate(() => AT.audio.state().mode), 'off', 'no music on home');
+
+  await press(page, 'Enter');
+  assert.strictEqual(await page.evaluate(() => AT.audio.state().mode), 'play', 'music on warm-up');
+  await press(page, 'Enter');
+  assert.strictEqual(await screen(page), 'exercise');
+  assert.match(await text(page), /Ritm: jos 3 s · sus 1 s/);
+  // Audio time is real time (the page clock is faked), so let both run together for ~4 s.
+  for (let i = 0; i < 40; i++) { await page.clock.runFor(100); await page.waitForTimeout(100); }
+  const ticks = await page.evaluate(() => AT.audio.events.filter(e => e.type === 'tick'));
+  assert.ok(ticks.length >= 3, 'ticks: ' + ticks.length);
+  assert.strictEqual(ticks[0].accent, true);
+  await page.screenshot({ path: path.join(OUT, 'e2e-9-ritm.png') });
+
+  await press(page, 'ArrowUp');
+  assert.strictEqual(await page.locator('#vol').innerText(), '♪ 70%');
+  assert.strictEqual(await page.evaluate(() => localStorage.getItem('at.music')), '70');
+
+  await press(page, 'Enter');                       // to the log screen
+  assert.strictEqual(await screen(page), 'log');
+  assert.strictEqual(await page.evaluate(() => AT.audio.state().tempo), false, 'tempo stops when leaving exercise');
+  await press(page, 'Enter');                       // rest
+  assert.strictEqual(await page.evaluate(() => AT.audio.state().mode), 'rest');
+  await page.clock.runFor(91000);
+  const cues = await page.evaluate(() => AT.audio.events.filter(e => e.type === 'cue').map(e => e.kind));
+  assert.deepStrictEqual(cues.slice(-4), ['short', 'short', 'short', 'long']);
+  assert.deepStrictEqual(errors, []);
+  await page.close();
+}
+
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const srv = await serve();
   const base = 'http://127.0.0.1:' + srv.address().port;
   const browser = await chromium.launch();
   let failed = false;
-  for (const [name, fn] of [['workout A end to end', workoutA], ['offline banner', offlineBanner], ['phone history page', historyPage], ['outbox flushed on load', outboxOnLoad], ['held OK saves one set', heldOk], ['home rolls over at midnight', midnight]]) {
+  for (const [name, fn] of [['workout A end to end', workoutA], ['offline banner', offlineBanner], ['phone history page', historyPage], ['outbox flushed on load', outboxOnLoad], ['held OK saves one set', heldOk], ['home rolls over at midnight', midnight], ['sound: music, tempo, volume, cues', soundScenario]]) {
     try { await fn(browser, base); console.log('ok -', name); }
     catch (e) { failed = true; console.log('not ok -', name, '\n', e && e.stack || e); }
   }

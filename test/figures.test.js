@@ -72,3 +72,12 @@ test('lateral raise legs do not cross', () => {
     assert.ok(s.knee[0] < s.knee2[0], `p=${p}`);
   }
 });
+
+test('tempo-driven pose follows AT.tempo.position', () => {
+  const T = require('../js/tempo.js');
+  const t = T.forExercise('goblet-squat', 1);
+  for (const sec of [0, 1.5, 3]) {
+    assert.ok(Math.abs(F.paramAt({ tempo: t, startAt: 1000 }, 1000 + sec * 1000) - T.position(t, sec)) < 1e-9, 'sec ' + sec);
+  }
+  assert.ok(Math.abs(F.paramAt({}, 800) - F.ease(800 / 3200)) < 1e-9);
+});

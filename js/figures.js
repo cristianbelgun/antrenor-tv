@@ -211,13 +211,26 @@
     paint(build(svg, exerciseId), exerciseId, p);
   }
 
-  function mount(svg, exerciseId) {
-    var parts = build(svg, exerciseId), running = true, start = null;
+  // Pose parameter (0..1) at time nowMs. With a tempo it follows the rep cycle that the ticks play;
+  // otherwise the default 3.2 s loop.
+  function paramAt(opts, nowMs) {
+    if (opts && opts.tempo) {
+      var sec = (nowMs - (opts.startAt || 0)) / 1000;
+      return sec < 0 ? 0 : AT.tempo.position(opts.tempo, sec);
+    }
+    var t = nowMs - ((opts && opts.startAt) || 0);
+    return ease(((t % CYCLE) + CYCLE) % CYCLE / CYCLE);
+  }
+
+  function mount(svg, exerciseId, opts) {
+    opts = opts || {};
+    var parts = build(svg, exerciseId), running = true;
+    var o = { tempo: opts.tempo || null, startAt: opts.startAt };
     if (reducedMotion()) { paint(parts, exerciseId, 0.5); return { stop: function () {} }; }
     function frame(ts) {
       if (!running) return;
-      if (start === null) start = ts;
-      paint(parts, exerciseId, ease(((ts - start) % CYCLE) / CYCLE));
+      if (o.startAt === undefined || o.startAt === null) o.startAt = ts;
+      paint(parts, exerciseId, paramAt(o, ts));
       root.requestAnimationFrame(frame);
     }
     paint(parts, exerciseId, 0);
@@ -225,6 +238,6 @@
     return { stop: function () { running = false; } };
   }
 
-  AT.figures = { POSES: POSES, pose: pose, skeleton: skeleton, draw: draw, mount: mount, ease: ease };
+  AT.figures = { POSES: POSES, pose: pose, skeleton: skeleton, draw: draw, mount: mount, ease: ease, paramAt: paramAt };
   if (typeof module === 'object' && module.exports) module.exports = AT.figures;
 })(typeof window !== 'undefined' ? window : globalThis);
