@@ -1,0 +1,220 @@
+<title>Antrenor TV – schițe</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: o coloană de ecrane TV 16:9, fiecare cu o notă scurtă dedesubt */
+:root {
+  --page: #eef0ec; --ink: #1d221f; --muted: #5d665f; --line: #d4d9d3;
+  --tv: #111513; --tv-2: #1b211e; --tv-ink: #f1f4ef; --tv-muted: #93a097;
+  --go: #c6f05a; --rest: #5ec8e6; --warn: #f2b84b;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --page: #161a18; --ink: #e8ece7; --muted: #9aa59d; --line: #2c332f; color-scheme: dark } }
+:root[data-theme="dark"] { --page: #161a18; --ink: #e8ece7; --muted: #9aa59d; --line: #2c332f; color-scheme: dark }
+
+body { background: var(--page); color: var(--ink); font-family: var(--body); line-height: 1.5; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 48px; }
+header h1 { font-family: var(--display); font-size: clamp(2rem, 5vw, 3rem); line-height: 1.05; margin: 0 0 8px; text-wrap: balance; letter-spacing: .01em; }
+header p { margin: 0; color: var(--muted); max-width: 62ch; }
+section { display: flex; flex-direction: column; gap: 14px; }
+.step { font-family: var(--display); font-weight: 600; font-size: 1.05rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.note { color: var(--muted); max-width: 70ch; margin: 0; }
+.note b { color: var(--ink); font-weight: 600; }
+
+/* ---- ecranul TV ---- */
+.tv { container-type: inline-size; aspect-ratio: 16/9; max-width: 100%; width: 100%;
+  background: var(--tv); color: var(--tv-ink); border-radius: 10px; overflow: hidden; position: relative;
+  box-shadow: 0 0 0 6px #000, 0 18px 40px -18px rgba(0,0,0,.55); }
+.tv * { box-sizing: border-box; }
+.scr { position: absolute; inset: 0; padding: 4cqw 5cqw; display: flex; flex-direction: column; gap: 2cqw; }
+.top { display: flex; justify-content: space-between; align-items: baseline; font-size: 1.6cqw; color: var(--tv-muted); letter-spacing: .04em; }
+.big { font-family: var(--display); font-weight: 700; line-height: .95; }
+.hint { position: absolute; left: 5cqw; right: 5cqw; bottom: 3cqw; display: flex; gap: 3cqw; font-size: 1.5cqw; color: var(--tv-muted); }
+.key { display: inline-block; border: .15cqw solid var(--tv-muted); border-radius: .5cqw; padding: 0 .7cqw; margin-right: .6cqw; color: var(--tv-ink); font-weight: 600; }
+.tabnum { font-variant-numeric: tabular-nums; }
+
+/* ecran 1 */
+.list { display: grid; grid-template-columns: 1fr auto auto; gap: 1.1cqw 4cqw; font-size: 2cqw; align-items: baseline; margin-top: 1cqw; }
+.list .h { font-size: 1.3cqw; color: var(--tv-muted); letter-spacing: .1em; text-transform: uppercase; }
+.list .last { color: var(--tv-muted); }
+.btn { align-self: flex-start; margin-top: auto; margin-bottom: 4cqw; background: var(--go); color: #111513; font-weight: 600; font-size: 2cqw; padding: 1.2cqw 3cqw; border-radius: .8cqw; outline: .4cqw solid var(--go); outline-offset: .5cqw; }
+
+/* ecran 2 */
+.ex { display: grid; grid-template-columns: 46% 1fr; gap: 4cqw; height: 100%; padding-bottom: 5cqw; }
+.anim { background: var(--tv-2); border-radius: 1.4cqw; display: flex; align-items: center; justify-content: center; position: relative; }
+.anim svg { width: 92%; height: 92%; }
+.anim .tag { position: absolute; top: 1.4cqw; left: 1.6cqw; font-size: 1.3cqw; color: var(--tv-muted); letter-spacing: .08em; text-transform: uppercase; }
+.info { display: flex; flex-direction: column; gap: 1.6cqw; justify-content: center; }
+.info .name { font-size: 4.6cqw; }
+.set { font-size: 2.2cqw; color: var(--go); font-weight: 600; }
+.dots { display: flex; gap: .8cqw; } .dots i { width: 2.4cqw; height: .7cqw; border-radius: .4cqw; background: #2f3833; } .dots i.on { background: var(--go); }
+.target { font-size: 8cqw; }
+.target small { font-family: var(--body); font-size: 1.8cqw; font-weight: 500; color: var(--tv-muted); margin-left: 1cqw; }
+.prev { font-size: 1.8cqw; color: var(--tv-muted); } .prev b { color: var(--tv-ink); }
+.tip { font-size: 1.7cqw; border-left: .35cqw solid var(--warn); padding-left: 1.4cqw; color: var(--tv-ink); }
+
+/* ecran 3 */
+.log { align-items: center; justify-content: center; text-align: center; }
+.log .q { font-size: 2.6cqw; }
+.stepper { display: flex; flex-direction: column; align-items: center; gap: .6cqw; }
+.stepper .arr { font-size: 2.6cqw; color: var(--tv-muted); }
+.stepper .n { font-size: 17cqw; color: var(--go); }
+.log .sub { font-size: 1.7cqw; color: var(--tv-muted); }
+
+/* ecran 4 */
+.rest { align-items: center; justify-content: center; text-align: center; }
+.ring { position: relative; width: 30cqw; aspect-ratio: 1; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring .t { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10cqw; }
+.rest .lbl { font-size: 2cqw; color: var(--rest); letter-spacing: .2em; text-transform: uppercase; font-weight: 600; }
+.rest .next { font-size: 2cqw; color: var(--tv-muted); } .rest .next b { color: var(--tv-ink); }
+
+/* ecran 5 */
+.sum table { border-collapse: collapse; font-size: 1.9cqw; width: 100%; }
+.sum th { text-align: left; font-size: 1.3cqw; color: var(--tv-muted); letter-spacing: .1em; text-transform: uppercase; font-weight: 500; padding-bottom: .8cqw; }
+.sum td { padding: .7cqw 0; border-top: .1cqw solid #2a312d; }
+.up { color: var(--go); font-weight: 600; } .same { color: var(--tv-muted); }
+.sum .head { font-size: 5cqw; }
+
+.questions { border-top: 1px solid var(--line); padding-top: 24px; }
+.questions h2 { font-family: var(--display); font-size: 1.8rem; margin: 0 0 8px; }
+.questions ol { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; max-width: 70ch; }
+
+@media (prefers-reduced-motion: reduce) { .anim svg { animation: none } }
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Antrenorul de pe televizor</h1>
+  <p>Schițe pentru cele cinci ecrane ale unui antrenament, desenate la proporția televizorului (16:9). Totul se comandă din telecomandă: săgeți și OK. Datele sunt exemple luate din programul tău.</p>
+</header>
+
+<section>
+  <div class="step">1 · Pornire</div>
+  <div class="tv"><div class="scr">
+    <div class="top"><span>Miercuri, 25 noiembrie · Săptămâna 3</span><span>~45 min</span></div>
+    <div class="big" style="font-size:6cqw">Antrenamentul B</div>
+    <div class="list tabnum">
+      <span class="h">Exercițiu</span><span class="h">Țintă</span><span class="h">Ultima dată</span>
+      <span>Îndreptări românești</span><span>3 × 10–15</span><span class="last">13 · 12 · 12</span>
+      <span>Fandări înapoi</span><span>3 × 10 / picior</span><span class="last">10 · 10 · 9</span>
+      <span>Împins din culcat (floor press)</span><span>3 × 10–15</span><span class="last">14 · 12 · 11</span>
+      <span>Ridicări laterale</span><span>3 × 12–15</span><span class="last">12 · 11 · 10</span>
+      <span>Flexii biceps</span><span>3 × 10–15</span><span class="last">12 · 12 · 10</span>
+      <span>Dead bug</span><span>3 × 10–12 / parte</span><span class="last">10 · 10 · 10</span>
+    </div>
+    <div class="btn">Începe încălzirea · 6 min</div>
+  </div></div>
+  <p class="note">Aplicația știe singură ce urmează azi după regula <b>A–B–A, apoi B–A–B</b>. În zilele de recuperare îți arată în schimb „Azi: mers 25–35 min și stretching”.</p>
+</section>
+
+<section>
+  <div class="step">2 · Exercițiul</div>
+  <div class="tv"><div class="scr">
+    <div class="ex">
+      <div class="anim"><span class="tag">Vedere din lateral</span><svg id="fig" viewBox="0 0 200 200" aria-label="Figurină care execută o genuflexiune cu gantera"></svg></div>
+      <div class="info">
+        <div class="top" style="justify-content:flex-start;gap:2cqw"><span>Exercițiul 1 din 6</span></div>
+        <div class="big name">Genuflexiuni cu gantera</div>
+        <div class="set">Seria 2 din 3</div>
+        <div class="dots"><i class="on"></i><i class="on"></i><i></i></div>
+        <div class="big target tabnum">12–15<small>repetări</small></div>
+        <div class="prev tabnum">Ultima dată: <b>13 · 12 · 12</b></div>
+        <div class="tip">Ține gantera la piept, coboară controlat, genunchii în direcția vârfurilor.</div>
+      </div>
+    </div>
+    <div class="hint"><span><span class="key">OK</span>am terminat seria</span><span><span class="key">◀ ▶</span>exercițiul anterior / următor</span></div>
+  </div></div>
+  <p class="note">Animația rulează continuu cât faci seria. Când termini, apeși <b>OK</b>. Ar arăta așa: figurine simple, desenate pentru fiecare dintre cele 15 exerciții.</p>
+</section>
+
+<section>
+  <div class="step">3 · Notezi repetările</div>
+  <div class="tv"><div class="scr log">
+    <div class="q">Câte repetări ai făcut?</div>
+    <div class="stepper"><span class="arr">▲</span><span class="big n tabnum">13</span><span class="arr">▼</span></div>
+    <div class="sub">Genuflexiuni · seria 2 · data trecută: 12</div>
+    <div class="hint" style="justify-content:center"><span><span class="key">▲ ▼</span>schimbă numărul</span><span><span class="key">OK</span>salvează și pornește pauza</span></div>
+  </div></div>
+  <p class="note">Numărul pornește de la ce ai făcut data trecută, așa că de cele mai multe ori apeși o dată-de două ori pe săgeată și gata.</p>
+</section>
+
+<section>
+  <div class="step">4 · Pauza</div>
+  <div class="tv"><div class="scr rest">
+    <div class="lbl">Pauză</div>
+    <div class="ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="#26302b" stroke-width="5"/><circle id="arc" cx="50" cy="50" r="45" fill="none" stroke="#5ec8e6" stroke-width="5" stroke-linecap="round" stroke-dasharray="282.7" stroke-dashoffset="0"/></svg><div class="t big tabnum" id="clock">1:30</div></div>
+    <div class="next">Urmează: <b>Genuflexiuni · seria 3 din 3</b></div>
+    <div class="hint" style="justify-content:center"><span><span class="key">OK</span>sari peste pauză</span><span><span class="key">▲ ▼</span>±15 secunde</span></div>
+  </div></div>
+  <p class="note">90 de secunde implicit (programul spune 60–120). Cu <b>3 secunde înainte</b> de final se aude un bip, apoi revine ecranul exercițiului.</p>
+</section>
+
+<section>
+  <div class="step">5 · Final</div>
+  <div class="tv"><div class="scr sum">
+    <div class="top"><span>Antrenamentul B · gata în 46 min</span><span>Următorul: vineri, A</span></div>
+    <div class="big head">+4 repetări față de data trecută</div>
+    <table class="tabnum">
+      <tr><th>Exercițiu</th><th>Azi</th><th>Data trecută</th><th></th></tr>
+      <tr><td>Îndreptări românești</td><td>14 · 13 · 12</td><td class="same">13 · 12 · 12</td><td class="up">+2</td></tr>
+      <tr><td>Fandări înapoi</td><td>10 · 10 · 10</td><td class="same">10 · 10 · 9</td><td class="up">+1</td></tr>
+      <tr><td>Împins din culcat</td><td>14 · 12 · 11</td><td class="same">14 · 12 · 11</td><td class="same">=</td></tr>
+      <tr><td>Ridicări laterale</td><td>12 · 11 · 11</td><td class="same">12 · 11 · 10</td><td class="up">+1</td></tr>
+    </table>
+  </div></div>
+  <p class="note">Aici se vede progresul despre care vorbește documentul. Dacă ai atins capătul de sus al țintei la toate seriile, aplicația îți poate sugera să treci la coborârea lentă de 3 secunde.</p>
+</section>
+
+<section class="questions">
+  <h2>Ce vreau să aflu de la tine</h2>
+  <ol>
+    <li>Ți se pare ușor de citit de pe canapea sau de pe saltea, de la 2–3 metri?</li>
+    <li>Pe ecranul exercițiului, animația în stânga și informațiile în dreapta e bine, sau vrei animația mult mai mare și cifrele mai mici?</li>
+    <li>Lipsește ceva ce ai vrea să vezi în timpul antrenamentului?</li>
+  </ol>
+</section>
+</div>
+
+<script>
+(function () {
+  var svg = document.getElementById('fig'); if (!svg) return;
+  var NS = 'http://www.w3.org/2000/svg';
+  function el(n, a) { var e = document.createElementNS(NS, n); for (var k in a) e.setAttribute(k, a[k]); svg.appendChild(e); return e; }
+  el('line', { x1: 30, y1: 182, x2: 180, y2: 182, stroke: '#2f3833', 'stroke-width': 2 });
+  var S = { stroke: '#f1f4ef', 'stroke-width': 7, 'stroke-linecap': 'round', fill: 'none' };
+  var foot = el('line', S), shin = el('line', S), thigh = el('line', S), torso = el('line', S), upper = el('line', S), fore = el('line', S);
+  var head = el('circle', { r: 10, fill: '#f1f4ef' });
+  var db = el('rect', { width: 10, height: 22, rx: 3, fill: '#c6f05a' });
+  function L(e, a, b) { e.setAttribute('x1', a[0]); e.setAttribute('y1', a[1]); e.setAttribute('x2', b[0]); e.setAttribute('y2', b[1]); }
+  function add(p, len, deg, dir) { var r = deg * Math.PI / 180; return [p[0] + dir * len * Math.sin(r), p[1] - len * Math.cos(r)]; }
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function draw(p) {
+    var ankle = [95, 176], toe = [118, 176];
+    var knee = add(ankle, 44, 38 * p, 1);
+    var hip = add(knee, 44, 8 + 90 * p, -1);
+    var sh = add(hip, 52, 6 + 34 * p, 1);
+    var hd = add(sh, 16, 6 + 34 * p, 1);
+    var elbow = [sh[0] + 10, sh[1] + 20], hand = [sh[0] + 20, sh[1] + 6];
+    L(foot, ankle, toe); L(shin, ankle, knee); L(thigh, knee, hip); L(torso, hip, sh); L(upper, sh, elbow); L(fore, elbow, hand);
+    head.setAttribute('cx', hd[0]); head.setAttribute('cy', hd[1]);
+    db.setAttribute('x', hand[0] - 3); db.setAttribute('y', hand[1] - 11);
+  }
+  if (reduce) { draw(0.6); } else {
+    (function loop(t) { var c = (t / 3200) % 1; draw((1 - Math.cos(c * 2 * Math.PI)) / 2); requestAnimationFrame(loop); })(0);
+  }
+  // pauza
+  var clock = document.getElementById('clock'), arc = document.getElementById('arc'), total = 90, left = 90;
+  setInterval(function () {
+    if (!reduce) left = left > 0 ? left - 1 : total;
+    else left = 84;
+    clock.textContent = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+    arc.setAttribute('stroke-dashoffset', String(282.7 * (1 - left / total)));
+  }, 1000);
+})();
+</script>
