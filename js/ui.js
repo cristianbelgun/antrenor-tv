@@ -13,7 +13,13 @@
     var sec = Math.max(0, Math.ceil(ms / 1000));
     return Math.floor(sec / 60) + ':' + (sec % 60 < 10 ? '0' : '') + (sec % 60);
   }
-  function key(k, label) { return '<span><span class="key">' + k + '</span>' + label + '</span>'; }
+  // A hint is also a button: in the LG web browser the remote moves a cursor and OK clicks,
+  // so every action must be reachable by clicking (data-act = the remote key it stands for).
+  function key(k, label, act) {
+    return act
+      ? '<button type="button" class="hint-btn" data-act="' + act + '"><span class="key">' + k + '</span>' + label + '</button>'
+      : '<span><span class="key">' + k + '</span>' + label + '</span>';
+  }
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
   function dateLabel(d) { return cap(DAYS[d.getDay()]) + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; }
   function targetText(e, state) {
@@ -71,7 +77,7 @@
     return '<div class="top"><span>Încălzire</span><span>Antrenamentul ' + s.workout.type + '</span></div>' +
       '<div class="warm"><div class="big clock num">' + mmss(s.warmupEnd - now.getTime()) + '</div><ul>' +
       AT.program.WARMUP.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul></div>' +
-      '<div class="hint">' + key('OK', 'sari peste') + '</div>';
+      '<div class="hint">' + key('OK', 'sari peste', 'OK') + key('▲', 'muzica mai tare', 'UP') + key('▼', 'mai încet', 'DOWN') + key('Înapoi', 'acasă', 'BACK') + '</div>';
   }
 
   function exerciseHtml(s, h) {
@@ -90,7 +96,8 @@
       (sugg ? '<div class="sugg">' + esc(sugg) + '</div>' : '') +
       (tempo ? '<div class="ritm">' + esc(AT.tempo.text(tempo)) + '</div>' : '') +
       '</div></div>' +
-      '<div class="hint">' + key('OK', 'am terminat seria') + key('◀ ▶', 'exercițiul anterior / următor') + key('Înapoi', 'ieși') + '</div>';
+      '<div class="hint">' + key('OK', 'am terminat seria', 'OK') + key('◀', 'anterior', 'LEFT') + key('▶', 'următor', 'RIGHT') +
+      key('▲', 'muzica mai tare', 'UP') + key('▼', 'mai încet', 'DOWN') + key('Înapoi', 'ieși', 'BACK') + '</div>';
   }
 
   function plankHtml(s, h, now) {
@@ -102,7 +109,7 @@
       '<div class="bar"><div class="fill" style="width:' + pct(sec) + '"></div>' +
       '<div class="mark" style="left:' + pct(30) + '"></div><div class="lab" style="left:' + pct(30) + '">30</div>' +
       '<div class="mark" style="left:' + pct(top) + '"></div><div class="lab" style="left:' + pct(top) + '">' + top + '</div></div>' +
-      '<div class="hint c">' + key('OK', 'gata') + key('Înapoi', 'renunță') + '</div>';
+      '<div class="hint c">' + key('OK', 'gata', 'OK') + key('Înapoi', 'renunță', 'BACK') + '</div>';
   }
 
   function logHtml(s, h) {
@@ -111,9 +118,9 @@
     var prev = last.length ? (last[s.setIndex - 1] !== undefined ? last[s.setIndex - 1] : last[last.length - 1]) : null;
     var q = e.unit === 'seconds' ? 'Câte secunde ai ținut?' : 'Câte repetări ai făcut' + (e.per ? ' pe ' + e.per : '') + '?';
     return '<div class="q">' + q + '</div>' +
-      '<div class="stepper"><span class="arr">▲</span><span class="big n num">' + s.value + '</span><span class="arr">▼</span></div>' +
+      '<div class="stepper"><button type="button" class="arr" data-act="UP">▲</button><span class="big n num">' + s.value + '</span><button type="button" class="arr" data-act="DOWN">▼</button></div>' +
       '<div class="sub">' + esc(e.name) + ' · seria ' + s.setIndex + (prev !== null ? ' · data trecută: ' + prev : '') + '</div>' +
-      '<div class="hint c">' + key('▲ ▼', 'schimbă numărul') + key('OK', 'salvează și pornește pauza') + key('Înapoi', 'nu salva') + '</div>';
+      '<div class="hint c">' + key('▲', 'plus unu', 'UP') + key('▼', 'minus unu', 'DOWN') + key('OK', 'salvează și pornește pauza', 'OK') + key('Înapoi', 'nu salva', 'BACK') + '</div>';
   }
 
   function restHtml(s, now) {
@@ -124,12 +131,12 @@
       '<circle cx="50" cy="50" r="45" fill="none" stroke="#5ec8e6" stroke-width="5" stroke-linecap="round" stroke-dasharray="282.7" stroke-dashoffset="' + (282.7 * (1 - frac)).toFixed(1) + '"/></svg>' +
       '<div class="t big num">' + mmss(left) + '</div></div>' +
       '<div class="next">Urmează: <b>' + esc(e.name) + ' · seria ' + t.setIndex + ' din ' + s.setsPlanned[t.exIndex] + '</b></div>' +
-      '<div class="hint c">' + key('OK', 'sari peste pauză') + key('▲ ▼', '±15 secunde') + '</div>';
+      '<div class="hint c">' + key('OK', 'sari peste pauză', 'OK') + key('▲', '+15 s', 'UP') + key('▼', '−15 s', 'DOWN') + '</div>';
   }
 
   function confirmHtml() {
     return '<div class="big title">Ieși din antrenament?</div><div class="sub">Seriile notate rămân salvate. Poți continua azi.</div>' +
-      '<div class="hint c">' + key('OK', 'da') + key('Înapoi', 'nu') + '</div>';
+      '<div class="hint c">' + key('OK', 'da', 'OK') + key('Înapoi', 'nu', 'BACK') + '</div>';
   }
 
   function summaryHtml(s, h, now) {
@@ -157,7 +164,7 @@
     return '<div class="top"><span>Antrenamentul ' + w.type + ' · gata în ' + mins + ' min</span><span>Următorul: ' + nextTrainingDay(now) + ', ' + (w.type === 'A' ? 'B' : 'A') + '</span></div>' +
       '<div class="big head">' + head + '</div>' +
       '<table class="num"><tr><th>Exercițiu</th><th>Azi</th><th>Data trecută</th><th></th></tr>' + rows + '</table>' +
-      '<div class="hint">' + key('OK', 'gata') + '</div>';
+      '<div class="hint">' + key('OK', 'gata', 'OK') + '</div>';
   }
 
   var mounted = { id: null, handle: null };

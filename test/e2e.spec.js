@@ -264,13 +264,57 @@ async function soundScenario(browser, base) {
   await page.close();
 }
 
+// The LG web browser turns the remote's arrows into a moving cursor and OK into a click:
+// the page gets no key events at all. Everything must work by clicking.
+async function cursorOnly(browser, base) {
+  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await fakeApi(page, { ops: [], sets: [] });
+  await page.clock.install({ time: new Date('2026-11-25T18:00:00') });
+  await page.addInitScript(() => { window.AT = window.AT || {}; window.AT.config = { secret: 'k' }; });
+  await page.goto(base + '/index.html');
+  await page.waitForSelector('#app[data-screen="home"]');
+  const tap = async (sel) => { await page.click(sel); await page.clock.runFor(600); };
+
+  await tap('.btn.on');
+  assert.strictEqual(await screen(page), 'warmup');
+  assert.strictEqual(await page.evaluate(() => AT.audio.state().ctx), true, 'a click starts the sound');
+  assert.strictEqual(await page.evaluate(() => AT.audio.state().mode), 'play');
+
+  await tap('[data-act="OK"]');
+  assert.strictEqual(await screen(page), 'exercise');
+  await tap('[data-act="UP"]');
+  assert.strictEqual(await page.locator('#vol').innerText(), '♪ 70%');
+  await tap('[data-act="RIGHT"]');
+  assert.match(await text(page), /Exercițiul 2 din 6/);
+  await tap('[data-act="LEFT"]');
+  await tap('[data-act="OK"]');
+  assert.strictEqual(await screen(page), 'log');
+  await tap('[data-act="UP"]');
+  assert.match(await page.locator('.stepper .n').innerText(), /^13$/);
+  await tap('[data-act="OK"]');
+  assert.strictEqual(await screen(page), 'rest');
+  await tap('[data-act="UP"]');
+  assert.match(await text(page), /1:4[0-5]/);
+  await tap('[data-act="OK"]');
+  assert.strictEqual(await screen(page), 'exercise');
+  await tap('[data-act="BACK"]');
+  assert.strictEqual(await screen(page), 'confirmExit');
+  await tap('[data-act="BACK"]');
+  assert.strictEqual(await screen(page), 'exercise');
+  await page.screenshot({ path: path.join(OUT, 'e2e-10-cursor.png') });
+  assert.deepStrictEqual(errors, []);
+  await page.close();
+}
+
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const srv = await serve();
   const base = 'http://127.0.0.1:' + srv.address().port;
   const browser = await chromium.launch();
   let failed = false;
-  for (const [name, fn] of [['workout A end to end', workoutA], ['offline banner', offlineBanner], ['phone history page', historyPage], ['outbox flushed on load', outboxOnLoad], ['held OK saves one set', heldOk], ['home rolls over at midnight', midnight], ['sound: music, tempo, volume, cues', soundScenario]]) {
+  for (const [name, fn] of [['workout A end to end', workoutA], ['offline banner', offlineBanner], ['phone history page', historyPage], ['outbox flushed on load', outboxOnLoad], ['held OK saves one set', heldOk], ['home rolls over at midnight', midnight], ['sound: music, tempo, volume, cues', soundScenario], ['cursor only (LG browser)', cursorOnly]]) {
     try { await fn(browser, base); console.log('ok -', name); }
     catch (e) { failed = true; console.log('not ok -', name, '\n', e && e.stack || e); }
   }

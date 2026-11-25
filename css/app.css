@@ -23,8 +23,12 @@ body { display: flex; align-items: center; justify-content: center; }
 .top { display: flex; justify-content: space-between; align-items: baseline; font-size: 1.6rem; color: var(--muted); letter-spacing: .04em; }
 .big { font-family: var(--display); font-weight: 700; line-height: .95; }
 .num { font-variant-numeric: tabular-nums; }
-.hint { position: absolute; left: 5rem; right: 5rem; bottom: 3rem; display: flex; gap: 3rem; font-size: 1.5rem; color: var(--muted); }
+.hint { position: absolute; left: 5rem; right: 5rem; bottom: 3rem; display: flex; flex-wrap: wrap; gap: 1rem 2.4rem; font-size: 1.5rem; color: var(--muted); }
 .hint.c { justify-content: center; }
+.hint-btn { font: inherit; color: inherit; background: none; border: 0; padding: .3rem .5rem; margin: -.3rem -.5rem; border-radius: .6rem; cursor: pointer; }
+.hint-btn:hover, .hint-btn:focus-visible { background: rgba(255,255,255,.08); outline: none; }
+.stepper .arr { font: inherit; font-size: 2.6rem; color: var(--muted); background: none; border: 0; padding: .4rem 2rem; border-radius: .8rem; cursor: pointer; }
+.stepper .arr:hover { background: rgba(255,255,255,.08); color: var(--ink); }
 .key { display: inline-block; border: .15rem solid var(--muted); border-radius: .5rem; padding: 0 .7rem; margin-right: .6rem; color: var(--ink); font-weight: 600; }
 .center-msg { margin: auto; font-size: 2.4rem; color: var(--muted); }
 .banner { position: absolute; top: 1.4rem; right: 2rem; font-size: 1.3rem; color: var(--warn); background: rgba(0,0,0,.35); padding: .4rem 1rem; border-radius: .6rem; }

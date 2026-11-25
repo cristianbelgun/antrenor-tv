@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds dist/antrenor-tv.zip for upload to cPanel.
+# Builds dist/antrenor-tv.zip for upload to cPanel (files at the top level: extract in the site's folder).
 # Usage: bash scripts/build-zip.sh <secret>
 # The secret goes only into the zip (js/config.js and config.php), never into the repository.
 set -euo pipefail
@@ -28,5 +28,5 @@ printf "<?php\nreturn ['secret' => '%s'];\n" "$SECRET" > "$STAGE/antrenor/config
 
 mkdir -p "$ROOT/dist"
 rm -f "$ROOT/dist/antrenor-tv.zip"
-(cd "$STAGE" && zip -qr "$ROOT/dist/antrenor-tv.zip" antrenor)
+(cd "$STAGE/antrenor" && zip -qr "$ROOT/dist/antrenor-tv.zip" .)
 echo "$ROOT/dist/antrenor-tv.zip"

@@ -74,17 +74,27 @@
     lastKeyAt = Date.now();
     var a = AT.ui.keyToAction(e);
     if (!a) return;
+    wakeAudio();
+    keepAwake();
+    dispatch(a.type);
+  });
+  // Magic Remote pointer: clicking a home button focuses and confirms it.
+  // Any gesture may start the sound: the LG web browser sends clicks, not keys.
+  function wakeAudio() {
     AT.audio.init(); // also resumes audio the TV may have suspended
     if (!audioReady) {
       audioReady = true;
       AT.audio.loadPlaylist(root.fetch ? root.fetch.bind(root) : null, (AT.config && AT.config.secret) || '');
     }
-    keepAwake();
-    dispatch(a.type);
-  });
-  // Magic Remote pointer: clicking a home button focuses and confirms it.
+  }
+  doc.addEventListener('mousedown', wakeAudio, true);
+  doc.addEventListener('touchstart', wakeAudio, true);
+
   app.addEventListener('click', function (e) {
     if (Date.now() - lastKeyAt < 300) return; // the remote's OK can also fire a click
+    wakeAudio();
+    var act = e.target.closest ? e.target.closest('[data-act]') : null;
+    if (act && s) { dispatch(act.getAttribute('data-act')); return; }
     var b = e.target.closest ? e.target.closest('[data-focus]') : null;
     if (b && s && s.screen === 'home') {
       s.focus = Number(b.getAttribute('data-focus'));
