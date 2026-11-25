@@ -54,7 +54,9 @@
       restEnd: 0,
       warmupEnd: 0,
       plankStart: 0,
-      beeped: false,
+      cueSec: null,
+      warmCue: 0,
+      plankCue: 0,
       target: null
     };
   }
@@ -124,7 +126,7 @@
     }
     return {
       state: assign(s2, {
-        screen: 'rest', target: pos, beeped: false,
+        screen: 'rest', target: pos, cueSec: null,
         restEnd: now.getTime() + s2.restTotal
       }),
       effects: [{ type: 'saveSet', set: set }]
@@ -132,6 +134,9 @@
   }
 
   var OK_GUARD_MS = 500;
+  var WARM_MARKS = [60000, 120000, 240000]; // warm-up exercise changes (WARMUP: 1 + 1 + 2 + 2 min)
+
+  function volume(a) { return { type: 'volume', delta: a === 'UP' ? 10 : -10 }; }
 
   // Ignores OK pressed within OK_GUARD_MS of a screen change (key repeat, double press,
   // a pointer click arriving together with the key) and stamps the time of each change.
@@ -165,16 +170,23 @@
 
       case 'warmup':
         if (a === 'BACK') return { state: home(ctx.history, now), effects: [] };
+        if (a === 'UP' || a === 'DOWN') return { state: s, effects: [volume(a)] };
         if (a === 'OK' || (a === 'TICK' && t >= s.warmupEnd)) {
           var r = { state: toExercise(s, { exIndex: 0, setIndex: 1 }), effects: [] };
-          if (a === 'TICK') r.effects.push({ type: 'beep', long: true });
+          if (a === 'TICK') r.effects.push({ type: 'beep', kind: 'long' });
           return r;
+        }
+        if (a === 'TICK') {
+          var done = s.warmCue || 0, elapsed = t - (s.warmupEnd - WARMUP_MS);
+          if (done < WARM_MARKS.length && elapsed >= WARM_MARKS[done]) {
+            return { state: assign(s, { warmCue: done + 1 }), effects: [{ type: 'beep', kind: 'double' }] };
+          }
         }
         return none;
 
       case 'exercise':
         if (a === 'OK') {
-          if (s.exIds[s.exIndex] === 'plank') return { state: assign(s, { screen: 'plank', plankStart: t }), effects: [] };
+          if (s.exIds[s.exIndex] === 'plank') return { state: assign(s, { screen: 'plank', plankStart: t, plankCue: 0 }), effects: [] };
           var s1 = assign(s, { screen: 'log' });
           s1.value = logDefault(s1, ctx);
           return { state: s1, effects: [] };
@@ -184,9 +196,17 @@
           return { state: toExercise(s, { exIndex: i, setIndex: countFor(s, s.exIds[i]) + 1 }), effects: [] };
         }
         if (a === 'BACK') return { state: assign(s, { screen: 'confirmExit' }), effects: [] };
+        if (a === 'UP' || a === 'DOWN') return { state: s, effects: [volume(a)] };
         return none;
 
       case 'plank':
+        if (a === 'TICK') {
+          var held = t - s.plankStart, pc = s.plankCue || 0;
+          var target = AT.progression.top('plank', emptyHistory(ctx.history).state) * 1000;
+          if (pc < 1 && held >= 30000 && held < target) return { state: assign(s, { plankCue: 1 }), effects: [{ type: 'beep', kind: 'short' }] };
+          if (pc < 2 && held >= target) return { state: assign(s, { plankCue: 2 }), effects: [{ type: 'beep', kind: 'high2' }] };
+          return none;
+        }
         if (a === 'OK') return { state: assign(s, { screen: 'log', value: Math.round((t - s.plankStart) / 1000) }), effects: [] };
         if (a === 'BACK') return { state: assign(s, { screen: 'exercise' }), effects: [] };
         return none;
@@ -202,13 +222,16 @@
         if (a === 'UP' || a === 'DOWN') {
           var total = Math.max(REST_MIN, Math.min(REST_MAX, s.restTotal + (a === 'UP' ? REST_STEP : -REST_STEP)));
           var end = s.restEnd + (total - s.restTotal);
-          return { state: assign(s, { restTotal: total, restEnd: end, beeped: s.beeped && end - t <= 3000 }), effects: [] };
+          return { state: assign(s, { restTotal: total, restEnd: end, cueSec: end - t > 3000 ? null : s.cueSec }), effects: [] };
         }
         if (a === 'OK') return { state: toExercise(s, s.target), effects: [] };
         if (a === 'TICK') {
           var left = s.restEnd - t;
-          if (left <= 0) return { state: toExercise(s, s.target), effects: [{ type: 'beep', long: true }] };
-          if (left <= 3000 && !s.beeped) return { state: assign(s, { beeped: true }), effects: [{ type: 'beep', long: false }] };
+          if (left <= 0) return { state: toExercise(s, s.target), effects: [{ type: 'beep', kind: 'long' }] };
+          var n = Math.ceil(left / 1000);
+          if (n <= 3 && (s.cueSec === null || s.cueSec === undefined || n < s.cueSec)) {
+            return { state: assign(s, { cueSec: n }), effects: [{ type: 'beep', kind: 'short' }] };
+          }
         }
         return none;
 

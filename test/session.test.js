@@ -123,7 +123,7 @@ test('plank: OK, 38 s, OK logs 38 seconds', () => {
   assert.strictEqual(r.effects[0].set.unit, 'seconds');
 });
 
-test('rest: ±15 s within 60–120, one short beep at 3 s, long beep at 0', () => {
+test('rest: ±15 s within 60–120, short beeps at 3-2-1 s, long beep at 0', () => {
   const t = harness();
   t.act('OK'); t.act('OK'); t.act('OK'); t.act('OK');
   assert.strictEqual(t.s.screen, 'rest');
@@ -134,7 +134,7 @@ test('rest: ±15 s within 60–120, one short beep at 3 s, long beep at 0', () =
   const before = t.log.effects.length;
   t.wait(60000);
   const beeps = t.log.effects.slice(before).filter(e => e.type === 'beep');
-  assert.deepStrictEqual(beeps.map(b => b.long), [false, true]);
+  assert.deepStrictEqual(beeps.map(b => b.kind), ['short', 'short', 'short', 'long']);
   assert.strictEqual(t.s.screen, 'exercise');
   assert.strictEqual(t.s.setIndex, 2);
 });
@@ -228,4 +228,50 @@ test('BACK on warm-up returns home and the empty workout does not count', () => 
   assert.strictEqual(t.s.screen, 'home');
   const next = S.home(t.h, new Date('2026-11-27T18:00:00'));
   assert.strictEqual(next.nextType, 'A');
+});
+
+test('warm-up cues at 1, 2, 4 min and the end', () => {
+  const t = harness();
+  t.act('OK');
+  const before = t.log.effects.length;
+  t.wait(361000);
+  const kinds = t.log.effects.slice(before).filter(e => e.type === 'beep').map(e => e.kind);
+  assert.deepStrictEqual(kinds, ['double', 'double', 'double', 'long']);
+});
+
+function toPlank(t) {
+  t.act('OK'); t.act('OK');
+  for (let i = 0; i < 5; i++) t.act('RIGHT');
+  t.act('OK');
+  assert.strictEqual(t.s.screen, 'plank');
+}
+
+test('plank cues at 30 s and at the target', () => {
+  const t = harness();
+  toPlank(t);
+  const before = t.log.effects.length;
+  t.wait(46000);
+  assert.deepStrictEqual(t.log.effects.slice(before).filter(e => e.type === 'beep').map(e => e.kind), ['short', 'high2']);
+});
+
+test('plank high cue waits for a raised target', () => {
+  const t = harness({ workouts: [], sets: [], state: { firstWorkoutAt: null, progression: { plank: { level: 3, extraSets: 1, plankTarget: 50 } } } });
+  toPlank(t);
+  const before = t.log.effects.length;
+  t.wait(49000);
+  assert.deepStrictEqual(t.log.effects.slice(before).filter(e => e.type === 'beep').map(e => e.kind), ['short']);
+  t.wait(1500);
+  assert.deepStrictEqual(t.log.effects.slice(before).filter(e => e.type === 'beep').map(e => e.kind), ['short', 'high2']);
+});
+
+test('UP on exercise emits volume +10, DOWN on warm-up -10', () => {
+  const t = harness();
+  t.act('OK');
+  let r = t.act('DOWN');
+  assert.deepStrictEqual(r.effects, [{ type: 'volume', delta: -10 }]);
+  assert.strictEqual(t.s.screen, 'warmup');
+  t.act('OK');
+  r = t.act('UP');
+  assert.deepStrictEqual(r.effects, [{ type: 'volume', delta: 10 }]);
+  assert.strictEqual(t.s.screen, 'exercise');
 });
