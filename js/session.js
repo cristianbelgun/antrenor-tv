@@ -13,12 +13,12 @@
 
   function home(history, now) {
     var h = emptyHistory(history);
-    var resumable = AT.schedule.findResumable(h.workouts, now);
+    var resumable = AT.schedule.findResumable(h.workouts, now, h.sets);
     return {
       screen: 'home',
       dayKind: AT.schedule.isTrainingDay(now) ? 'training' : 'rest',
       resumable: resumable,
-      nextType: resumable ? resumable.type : AT.schedule.nextWorkoutType(h.workouts),
+      nextType: resumable ? resumable.type : AT.schedule.nextWorkoutType(h.workouts, h.sets),
       focus: 0
     };
   }
@@ -131,7 +131,25 @@
     };
   }
 
+  var OK_GUARD_MS = 500;
+
+  // Ignores OK pressed within OK_GUARD_MS of a screen change (key repeat, double press,
+  // a pointer click arriving together with the key) and stamps the time of each change.
   function next(s, action, ctx) {
+    var t = action.now.getTime();
+    if (action.type === 'OK' && s.since && t - s.since < OK_GUARD_MS) return { state: s, effects: [] };
+    var r = step(s, action, ctx);
+    if (r.state.screen !== s.screen) r.state = assign(r.state, { since: t });
+    return r;
+  }
+
+  function closeAbandoned(w, ctx) {
+    var end = w.startedAt;
+    emptyHistory(ctx.history).sets.forEach(function (x) { if (x.workoutId === w.id && x.at > end) end = x.at; });
+    return assign(w, { finishedAt: end });
+  }
+
+  function step(s, action, ctx) {
     var now = action.now, t = now.getTime(), a = action.type;
     var none = { state: s, effects: [] };
     switch (s.screen) {
@@ -139,11 +157,14 @@
         if ((a === 'UP' || a === 'DOWN') && s.resumable) return { state: assign(s, { focus: s.focus ? 0 : 1 }), effects: [] };
         if (a === 'OK') {
           if (s.resumable && s.focus === 0) return resume(s.resumable, now, ctx);
-          return start(s.nextType, now, ctx);
+          var st = start(s.nextType, now, ctx);
+          if (s.resumable) st.effects.unshift({ type: 'saveWorkout', workout: closeAbandoned(s.resumable, ctx) });
+          return st;
         }
         return none;
 
       case 'warmup':
+        if (a === 'BACK') return { state: home(ctx.history, now), effects: [] };
         if (a === 'OK' || (a === 'TICK' && t >= s.warmupEnd)) {
           var r = { state: toExercise(s, { exIndex: 0, setIndex: 1 }), effects: [] };
           if (a === 'TICK') r.effects.push({ type: 'beep', long: true });

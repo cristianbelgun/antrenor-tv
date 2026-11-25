@@ -14,12 +14,21 @@
     workouts.forEach(function (w) { if (!best || w.startedAt > best.startedAt) best = w; });
     return best;
   }
+  // With `sets` given, keep only workouts that have at least one saved set (an empty start does not count).
+  function withSets(workouts, sets) {
+    if (!sets) return workouts || [];
+    var has = {};
+    sets.forEach(function (s) { has[s.workoutId] = true; });
+    return (workouts || []).filter(function (w) { return has[w.id]; });
+  }
 
   AT.schedule = {
     sameDay: sameDay,
 
-    nextWorkoutType: function (workouts) {
-      var last = latest(workouts || []);
+    withSets: withSets,
+
+    nextWorkoutType: function (workouts, sets) {
+      var last = latest(withSets(workouts, sets));
       if (!last) return 'A';
       return last.type === 'A' ? 'B' : 'A';
     },
@@ -40,9 +49,9 @@
       return Math.floor(Math.max(0, daysSince(state.firstWorkoutAt, today)) / 7) + 1;
     },
 
-    findResumable: function (workouts, today) {
+    findResumable: function (workouts, today, sets) {
       var found = null;
-      (workouts || []).forEach(function (w) {
+      withSets(workouts, sets).forEach(function (w) {
         if (!w.finishedAt && sameDay(w.startedAt, today) && (!found || w.startedAt > found.startedAt)) found = w;
       });
       return found;

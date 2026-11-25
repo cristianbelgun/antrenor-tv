@@ -33,6 +33,8 @@ function emptyHistory()
     return ['workouts' => [], 'sets' => [], 'state' => null];
 }
 
+// A file that exists but cannot be read or decoded is an error, never "empty":
+// treating it as empty would let the next write wipe the history.
 function readHistory($file)
 {
     if (!is_file($file)) {
@@ -41,7 +43,7 @@ function readHistory($file)
     $raw = file_get_contents($file);
     $data = json_decode($raw === false ? '' : $raw, true);
     if (!is_array($data)) {
-        return emptyHistory();
+        respond(500, ['ok' => false, 'error' => 'corrupt_history']);
     }
     return array_merge(emptyHistory(), $data);
 }
@@ -142,7 +144,16 @@ foreach ($body['ops'] as $op) {
 if ($applied > 0) {
     $tmp = $historyFile . '.tmp';
     $json = json_encode($h, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    if ($json === false || file_put_contents($tmp, $json) === false || !rename($tmp, $historyFile)) {
+    $written = $json === false ? false : file_put_contents($tmp, $json);
+    if ($written !== strlen($json)) {
+        @unlink($tmp);
+        flock($lock, LOCK_UN);
+        respond(500, ['ok' => false, 'error' => 'storage']);
+    }
+    if (is_file($historyFile)) {
+        @copy($historyFile, $historyFile . '.bak');
+    }
+    if (!rename($tmp, $historyFile)) {
         flock($lock, LOCK_UN);
         respond(500, ['ok' => false, 'error' => 'storage']);
     }

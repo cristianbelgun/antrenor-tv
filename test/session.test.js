@@ -21,7 +21,7 @@ function harness(history, startIso) {
   const api = {
     get s() { return s; }, h, log,
     act(type, advanceMs) {
-      if (advanceMs) now += advanceMs;
+      now += advanceMs === undefined ? (type === 'TICK' ? 0 : 600) : advanceMs;
       const r = S.next(s, { type, now: new Date(now) }, ctx);
       s = r.state; apply(r.effects);
       if (log.screens[log.screens.length - 1] !== s.screen) log.screens.push(s.screen);
@@ -36,7 +36,8 @@ function harness(history, startIso) {
 }
 
 test('full workout B on empty history (2 sets each in first weeks)', () => {
-  const h = { workouts: [{ id: 'old', type: 'A', startedAt: '2026-11-23T18:00:00', finishedAt: '2026-11-23T18:45:00' }], sets: [], state: { firstWorkoutAt: null, progression: {} } };
+  const h = { workouts: [{ id: 'old', type: 'A', startedAt: '2026-11-23T18:00:00', finishedAt: '2026-11-23T18:45:00' }],
+    sets: [{ id: 'o1', workoutId: 'old', exerciseId: 'pushup', setIndex: 1, value: 9, at: '2026-11-23T18:10:00' }], state: { firstWorkoutAt: null, progression: {} } };
   const t = harness(h);
   assert.strictEqual(t.s.screen, 'home');
   assert.strictEqual(t.s.nextType, 'B');
@@ -81,9 +82,11 @@ test('log default without history is the target minimum', () => {
 
 test('log default uses last values per set, then the last one', () => {
   const h = {
-    workouts: [{ id: 'p', type: 'A', startedAt: '2026-11-20T18:00:00', finishedAt: '2026-11-20T18:40:00' },
-               { id: 'q', type: 'B', startedAt: '2026-11-23T18:00:00', finishedAt: '2026-11-23T18:40:00' }],
-    sets: [{ id: 's1', workoutId: 'p', exerciseId: 'goblet-squat', setIndex: 1, value: 12, method: 0, at: '2026-11-20T18:05:00' },
+    workouts: [{ id: 'q', type: 'B', startedAt: '2026-11-18T18:00:00', finishedAt: '2026-11-18T18:40:00' },
+               { id: 'p', type: 'A', startedAt: '2026-11-20T18:00:00', finishedAt: '2026-11-20T18:40:00' },
+               { id: 'r', type: 'B', startedAt: '2026-11-23T18:00:00', finishedAt: '2026-11-23T18:40:00' }],
+    sets: [{ id: 'r1', workoutId: 'r', exerciseId: 'rdl', setIndex: 1, value: 12, method: 0, at: '2026-11-23T18:05:00' },
+           { id: 's1', workoutId: 'p', exerciseId: 'goblet-squat', setIndex: 1, value: 12, method: 0, at: '2026-11-20T18:05:00' },
            { id: 's2', workoutId: 'p', exerciseId: 'goblet-squat', setIndex: 2, value: 11, method: 0, at: '2026-11-20T18:08:00' }],
     state: { firstWorkoutAt: '2026-11-01T18:00:00', progression: {} }
   };
@@ -151,10 +154,10 @@ test('resume starts at next unsaved set', () => {
 
 test('restart instead of resume creates a new workout of the same type', () => {
   const w = { id: 'today', type: 'B', startedAt: '2026-11-25T17:30:00', finishedAt: null };
-  const t = harness({ workouts: [w], sets: [], state: { firstWorkoutAt: null, progression: {} } });
+  const t = harness({ workouts: [w], sets: [{ id: 'x', workoutId: 'today', exerciseId: 'rdl', setIndex: 1, value: 10, at: '2026-11-25T17:40:00' }], state: { firstWorkoutAt: null, progression: {} } });
   t.act('DOWN');
   const r = t.act('OK');
-  const nw = r.effects.find(e => e.type === 'saveWorkout').workout;
+  const nw = r.effects.filter(e => e.type === 'saveWorkout').map(e => e.workout).find(x => x.id !== 'today');
   assert.notStrictEqual(nw.id, 'today');
   assert.strictEqual(nw.type, 'B');
   assert.strictEqual(t.s.screen, 'warmup');
@@ -162,7 +165,8 @@ test('restart instead of resume creates a new workout of the same type', () => {
 
 test('BACK on log saves nothing; exit confirm returns home with resumable', () => {
   const t = harness();
-  t.act('OK'); t.act('OK'); t.act('OK');
+  t.act('OK'); t.act('OK'); t.act('OK'); t.act('OK'); t.act('OK'); // one set saved, rest skipped
+  t.act('OK');
   const r = t.act('BACK');
   assert.strictEqual(r.effects.length, 0);
   assert.strictEqual(t.s.screen, 'exercise');
@@ -185,4 +189,43 @@ test('resumePosition reports the exercise and set to continue at', () => {
   const h = { workouts: [w], sets: [{ id: 'a', workoutId: 'today', exerciseId: 'rdl', setIndex: 1 }, { id: 'b', workoutId: 'today', exerciseId: 'rdl', setIndex: 2 }],
     state: { firstWorkoutAt: null, progression: {} } };
   assert.deepStrictEqual(S.resumePosition(w, h, new Date('2026-11-25T18:00:00')), { exIndex: 1, setIndex: 1 });
+});
+
+test('fast repeated OK does not cascade through screens', () => {
+  const t = harness();
+  t.act('OK'); t.act('OK'); t.act('OK');
+  assert.strictEqual(t.s.screen, 'log');
+  t.act('OK');                       // saves set 1, goes to rest
+  assert.strictEqual(t.s.screen, 'rest');
+  for (let i = 0; i < 4; i++) t.act('OK', 100); // key repeat
+  assert.strictEqual(t.s.screen, 'rest');
+  assert.strictEqual(t.log.effects.filter(e => e.type === 'saveSet').length, 1);
+  t.act('OK', 500);
+  assert.strictEqual(t.s.screen, 'exercise');
+});
+
+test('restart closes the abandoned workout so it is not offered again', () => {
+  const w = { id: 'today', type: 'B', startedAt: '2026-11-25T17:30:00', finishedAt: null };
+  const h = { workouts: [w], sets: [{ id: 'x', workoutId: 'today', exerciseId: 'rdl', setIndex: 1, value: 10, at: '2026-11-25T17:40:00' }],
+    state: { firstWorkoutAt: null, progression: {} } };
+  const t = harness(h);
+  t.act('DOWN');
+  const r = t.act('OK');
+  const saved = r.effects.filter(e => e.type === 'saveWorkout').map(e => e.workout);
+  const old = saved.find(x => x.id === 'today');
+  assert.ok(old, 'old workout saved');
+  assert.strictEqual(old.finishedAt, '2026-11-25T17:40:00');
+  const fresh = saved.find(x => x.id !== 'today');
+  t.h.sets.push({ id: 'n1', workoutId: fresh.id, exerciseId: 'rdl', setIndex: 1, value: 11, at: '2026-11-25T18:10:00' });
+  assert.strictEqual(S.home(t.h, new Date('2026-11-25T19:00:00')).resumable.id, fresh.id);
+});
+
+test('BACK on warm-up returns home and the empty workout does not count', () => {
+  const t = harness();
+  t.act('OK');
+  assert.strictEqual(t.s.screen, 'warmup');
+  t.act('BACK');
+  assert.strictEqual(t.s.screen, 'home');
+  const next = S.home(t.h, new Date('2026-11-27T18:00:00'));
+  assert.strictEqual(next.nextType, 'A');
 });

@@ -36,6 +36,7 @@ function fakeApi(page, state) {
   });
 }
 
+async function press(page, key) { await page.keyboard.press(key); await page.clock.runFor(600); }
 async function text(page) { return page.locator('#app').innerText(); }
 async function screen(page) { return page.locator('#app').getAttribute('data-screen'); }
 async function shot(page, name) { await page.screenshot({ path: path.join(OUT, name + '.png') }); }
@@ -53,11 +54,11 @@ async function workoutA(browser, base) {
   assert.match(await text(page), /Antrenamentul A/);
   await shot(page, 'e2e-1-home');
 
-  await page.keyboard.press('Enter');
+  await press(page, 'Enter');
   assert.strictEqual(await screen(page), 'warmup');
   assert.match(await text(page), /6:00|5:59/);
   await shot(page, 'e2e-2-warmup');
-  await page.keyboard.press('Enter');
+  await press(page, 'Enter');
   assert.strictEqual(await screen(page), 'exercise');
   let t = await text(page);
   assert.match(t, /Genuflexiuni cu gantera/);
@@ -65,12 +66,12 @@ async function workoutA(browser, base) {
   assert.match(t, /Ultima dată: —/);
   await shot(page, 'e2e-3-exercise');
 
-  await page.keyboard.press('Enter');
+  await press(page, 'Enter');
   assert.strictEqual(await screen(page), 'log');
-  await page.keyboard.press('ArrowUp');
+  await press(page, 'ArrowUp');
   assert.match(await text(page), /13/);
   await shot(page, 'e2e-4-log');
-  await page.keyboard.press('Enter');
+  await press(page, 'Enter');
   assert.strictEqual(await screen(page), 'rest');
   assert.match(await text(page), /Pauză/i);
   await shot(page, 'e2e-5-rest');
@@ -82,16 +83,16 @@ async function workoutA(browser, base) {
   while ((await screen(page)) !== 'summary' && guard++ < 60) {
     const s = await screen(page);
     if (s === 'exercise') {
-      await page.keyboard.press('Enter');
+      await press(page, 'Enter');
       if ((await screen(page)) === 'plank') {
         await shot(page, 'e2e-6-plank');
-        await page.clock.runFor(40000);
-        await page.keyboard.press('Enter');
+        await page.clock.runFor(39400);
+        await press(page, 'Enter');
         assert.strictEqual(await screen(page), 'log');
         assert.match(await text(page), /40/);
       }
     } else if (s === 'log' || s === 'rest') {
-      await page.keyboard.press('Enter');
+      await press(page, 'Enter');
     } else throw new Error('unexpected screen ' + s);
   }
   await page.clock.runFor(1000);
@@ -145,13 +146,79 @@ async function historyPage(browser, base) {
   await page.close();
 }
 
+async function outboxOnLoad(browser, base) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const api = { ops: [], sets: [] };
+  await fakeApi(page, api);
+  await page.addInitScript(() => {
+    window.AT = window.AT || {}; window.AT.config = { secret: 'k' };
+    if (!sessionStorage.getItem('seeded')) {
+      sessionStorage.setItem('seeded', '1');
+      localStorage.setItem('at.outbox', JSON.stringify([{ kind: 'set', data: { id: 'offline-1', workoutId: 'w', exerciseId: 'pushup', setIndex: 1, value: 9, at: '2026-11-25T18:00:00.000Z' } }]));
+    }
+  });
+  await page.goto(base + '/index.html');
+  await page.waitForSelector('#app[data-screen="home"]');
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('at.outbox') || '[1]').length === 0, null, { timeout: 5000 });
+  assert.deepStrictEqual(api.sets.map(x => x.id), ['offline-1']);
+  await page.close();
+}
+
+async function heldOk(browser, base) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const api = { ops: [], sets: [] };
+  await fakeApi(page, api);
+  await page.clock.install({ time: new Date('2026-11-25T18:00:00') });
+  await page.addInitScript(() => { window.AT = window.AT || {}; window.AT.config = { secret: 'k' }; });
+  await page.goto(base + '/index.html');
+  await page.waitForSelector('#app[data-screen="home"]');
+  await press(page, 'Enter'); await press(page, 'Enter'); await press(page, 'Enter');
+  assert.strictEqual(await screen(page), 'log');
+  await page.keyboard.down('Enter');           // first press: saves, goes to rest
+  for (let i = 0; i < 30; i++) {               // auto-repeat while held
+    await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, which: 13, repeat: true, bubbles: true })));
+    await page.clock.runFor(50);
+  }
+  await page.keyboard.up('Enter');
+  assert.strictEqual(await screen(page), 'rest');
+  await page.clock.runFor(1000);
+  const sets = await page.evaluate(() => JSON.parse(localStorage.getItem('at.history')).sets.length);
+  assert.strictEqual(sets, 1);
+  await page.close();
+}
+
+async function midnight(browser, base) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await fakeApi(page, { ops: [], sets: [] });
+  await page.clock.install({ time: new Date('2026-11-25T23:59:50') });
+  await page.addInitScript(() => {
+    window.AT = window.AT || {}; window.AT.config = { secret: 'k' };
+    if (!sessionStorage.getItem('seeded')) {
+      sessionStorage.setItem('seeded', '1');
+      localStorage.setItem('at.history', JSON.stringify({
+        workouts: [{ id: 'w', type: 'A', startedAt: new Date(2026, 10, 25, 23, 30).toISOString(), finishedAt: null }],
+        sets: [{ id: 's', workoutId: 'w', type: 'A', exerciseId: 'goblet-squat', setIndex: 1, value: 12, unit: 'reps', method: 0, at: new Date(2026, 10, 25, 23, 40).toISOString() }],
+        state: { firstWorkoutAt: null, progression: {} } }));
+    }
+  });
+  await page.goto(base + '/index.html');
+  await page.waitForSelector('#app[data-screen="home"]');
+  assert.match(await text(page), /Continuă antrenamentul A/);
+  await page.clock.runFor(20000);
+  await page.waitForFunction(() => /Joi, 26 noiembrie/.test(document.getElementById('app').innerText), null, { timeout: 5000 });
+  const t = await text(page);
+  assert.doesNotMatch(t, /Continuă/);
+  assert.match(t, /Antrenamentul B|Azi: recuperare/);
+  await page.close();
+}
+
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const srv = await serve();
   const base = 'http://127.0.0.1:' + srv.address().port;
   const browser = await chromium.launch();
   let failed = false;
-  for (const [name, fn] of [['workout A end to end', workoutA], ['offline banner', offlineBanner], ['phone history page', historyPage]]) {
+  for (const [name, fn] of [['workout A end to end', workoutA], ['offline banner', offlineBanner], ['phone history page', historyPage], ['outbox flushed on load', outboxOnLoad], ['held OK saves one set', heldOk], ['home rolls over at midnight', midnight]]) {
     try { await fn(browser, base); console.log('ok -', name); }
     catch (e) { failed = true; console.log('not ok -', name, '\n', e && e.stack || e); }
   }

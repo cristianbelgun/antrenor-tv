@@ -81,3 +81,11 @@ test('advance sets firstWorkoutAt and does not mutate input', () => {
   assert.strictEqual(JSON.stringify(st), snap);
   assert.strictEqual(s.firstWorkoutAt, '2026-12-30T18:00:00');
 });
+
+test('lastSameType ignores workouts with no sets', () => {
+  const h = { workouts: [
+      { id: 'w1', type: 'A', startedAt: '2026-12-21T18:00:00', finishedAt: '2026-12-21T18:40:00' },
+      { id: 'w2', type: 'A', startedAt: '2026-12-25T18:00:00', finishedAt: '2026-12-25T18:00:00' }],
+    sets: sets('pushup', [10], 0, 'w1'), state: base() };
+  assert.strictEqual(P.lastSameType('A', h, 'now').id, 'w1');
+});

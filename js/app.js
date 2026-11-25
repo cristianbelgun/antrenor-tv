@@ -1,7 +1,7 @@
 (function (root) {
   var AT = root.AT, doc = root.document;
   var app = doc.getElementById('app'), stage = doc.querySelector('.tv');
-  var s = null, store = null, lastKey = '';
+  var s = null, store = null, lastKey = '', lastKeyAt = 0, loadedDay = '';
 
   function fit() {
     var w = Math.min(root.innerWidth, root.innerHeight * 16 / 9);
@@ -55,6 +55,7 @@
   doc.addEventListener('visibilitychange', function () { if (doc.visibilityState === 'visible') keepAwake(); });
 
   doc.addEventListener('keydown', function (e) {
+    lastKeyAt = Date.now();
     var a = AT.ui.keyToAction(e);
     if (!a) return;
     AT.ui.ensureAudio();
@@ -63,6 +64,7 @@
   });
   // Magic Remote pointer: clicking a home button focuses and confirms it.
   app.addEventListener('click', function (e) {
+    if (Date.now() - lastKeyAt < 300) return; // the remote's OK can also fire a click
     var b = e.target.closest ? e.target.closest('[data-focus]') : null;
     if (b && s && s.screen === 'home') {
       s.focus = Number(b.getAttribute('data-focus'));
@@ -72,9 +74,25 @@
     }
   });
 
-  store.load().then(function () {
-    s = AT.session.home(store.history, new Date());
-    draw(true);
-    setInterval(function () { dispatch('TICK'); }, 250);
+  // (Re)loads history, closes workouts left open on earlier days and shows the home screen.
+  function boot() {
+    return store.load().then(function () {
+      loadedDay = new Date().toDateString();
+      s = AT.session.home(store.history, new Date());
+      draw(true);
+      store.flush(); // send anything saved while offline
+    });
+  }
+
+  boot().then(function () {
+    setInterval(function () {
+      if (new Date().toDateString() !== loadedDay && (s.screen === 'home' || s.screen === 'summary')) {
+        loadedDay = new Date().toDateString();
+        boot();
+        return;
+      }
+      dispatch('TICK');
+    }, 250);
+    setInterval(function () { store.flush(); }, 60000);
   });
 })(window);

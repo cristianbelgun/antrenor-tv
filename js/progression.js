@@ -23,7 +23,7 @@
 
   function lastSameType(type, history, excludeWorkoutId) {
     var best = null;
-    (history.workouts || []).forEach(function (w) {
+    AT.schedule.withSets(history.workouts, history.sets || []).forEach(function (w) {
       if (w.type !== type || !w.finishedAt || w.id === excludeWorkoutId) return;
       if (!best || w.startedAt > best.startedAt) best = w;
     });

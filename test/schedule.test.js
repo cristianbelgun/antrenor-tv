@@ -61,3 +61,10 @@ test('closeStale + nextWorkoutType', () => {
   assert.strictEqual(S.closeStale([wk('e', 'A', '2026-11-20T18:00:00', null)], [], today)[0].finishedAt, '2026-11-20T18:00:00');
   assert.strictEqual(S.nextWorkoutType([closed[0]]), 'B');
 });
+
+test('nextWorkoutType ignores workouts with no saved sets', () => {
+  const ws = [wk('1', 'A', '2026-11-23T18:00:00'), wk('2', 'B', '2026-11-25T18:00:00')];
+  const sets = [{ workoutId: '1' }];
+  assert.strictEqual(S.nextWorkoutType(ws, sets), 'B');
+  assert.strictEqual(S.nextWorkoutType(ws), 'A');
+});

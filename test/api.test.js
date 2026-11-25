@@ -86,3 +86,12 @@ test('parallel posts keep every set (lock works)', async () => {
   const h = await (await get('test-secret')).json();
   assert.strictEqual(h.sets.length, before + 10);
 });
+
+test('corrupt history file is not overwritten', async () => {
+  fs.writeFileSync(histFile(), '{"workouts":[{"id":"w1"');
+  const g = await get('test-secret');
+  assert.strictEqual(g.status, 500);
+  const r = await post({ secret: 'test-secret', ops: [setOp('after-corrupt')] });
+  assert.strictEqual(r.status, 500);
+  assert.strictEqual(fs.readFileSync(histFile(), 'utf8'), '{"workouts":[{"id":"w1"');
+});

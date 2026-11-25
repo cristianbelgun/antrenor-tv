@@ -197,6 +197,7 @@
     var type = map[code];
     if (!type) return null;
     if (e.preventDefault) e.preventDefault();
+    if (e.repeat) return null; // a held key acts once
     return { type: type };
   }
 
