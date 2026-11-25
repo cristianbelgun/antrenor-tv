@@ -74,9 +74,9 @@
     lastKeyAt = Date.now();
     var a = AT.ui.keyToAction(e);
     if (!a) return;
+    AT.audio.init(); // also resumes audio the TV may have suspended
     if (!audioReady) {
       audioReady = true;
-      AT.audio.init();
       AT.audio.loadPlaylist(root.fetch ? root.fetch.bind(root) : null, (AT.config && AT.config.secret) || '');
     }
     keepAwake();

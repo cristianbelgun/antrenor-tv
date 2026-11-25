@@ -4,7 +4,12 @@ require('../js/program.js'); require('../js/tempo.js'); require('../js/music.js'
 const A = require('../js/audio.js');
 
 // Minimal fake Web Audio: records what gets started.
-function param(v) { return { value: v, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, cancelScheduledValues() {}, setTargetAtTime() {} }; }
+function param(v) {
+  const calls = [];
+  return { value: v, calls,
+    setValueAtTime(x, t) { calls.push(['set', x, t]); }, linearRampToValueAtTime(x, t) { calls.push(['ramp', x, t]); },
+    exponentialRampToValueAtTime() {}, cancelScheduledValues(t) { calls.push(['cancel', t]); }, setTargetAtTime() {} };
+}
 function node(extra) { return Object.assign({ connect() { return this; }, disconnect() {} }, extra || {}); }
 function FakeCtx() {
   const self = this;
@@ -116,4 +121,46 @@ test('a tempo started before init begins cleanly after init', () => {
   a._ctx().currentTime = 100; // the TV has been on for a while
   a._pump();
   assert.ok(a.events.filter(e => e.type === 'tick').length <= 1, 'no burst of overdue ticks');
+});
+
+function musicBusOf(a) { return a._buses().music.gain.calls; }
+
+test('a cue ducks the music and a following scene change keeps the duck', () => {
+  for (const next of ['exercise', 'rest']) {
+    const a = make();
+    a.init({ Ctx: FakeCtx });
+    a.setScene('exercise');
+    a._ctx().currentTime = 5;
+    a.signal('short');
+    a.setScene(next);
+    const calls = musicBusOf(a);
+    const last = calls[calls.length - 1];
+    assert.strictEqual(last[0], 'ramp', next);
+    assert.ok(last[2] > 5.4, 'recovers after the cue, at ' + last[2]);
+    assert.ok(calls.some(c => c[0] === 'set' && Math.abs(c[1] - 0.6 * 0.6 * 0.3) < 1e-9), 'ducked to 30%');
+  }
+});
+
+test('a broken mp3 moves on, and all broken falls back to generated', () => {
+  const made = [];
+  global.Audio = function (url) {
+    const ls = {}; this.url = url; made.push(this);
+    this.addEventListener = (ev, f) => { ls[ev] = f; };
+    this.play = () => { setImmediate(() => ls.error && ls.error()); return Promise.resolve(); };
+    this.pause = () => {};
+    this.fire = ev => ls[ev] && ls[ev]();
+  };
+  try {
+    const a = make();
+    a.init({ Ctx: FakeCtx });
+    a.usePlaylist(['a.mp3', 'b.mp3']);
+    a.setScene('exercise');
+    assert.strictEqual(a.state().source, 'mp3');
+    made[0].fire('error');
+    assert.strictEqual(made.length, 2, 'next track started');
+    made[1].fire('error');
+    assert.strictEqual(a.state().source, 'generated');
+    for (let i = 0; i < 25; i++) { a._ctx().currentTime += 0.1; a._pump(); }
+    assert.ok(a._ctx().started.length > 10, 'generated music playing');
+  } finally { delete global.Audio; }
 });

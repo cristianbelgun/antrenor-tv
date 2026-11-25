@@ -244,7 +244,11 @@ async function soundScenario(browser, base) {
   assert.strictEqual(ticks[0].accent, true);
   await page.screenshot({ path: path.join(OUT, 'e2e-9-ritm.png') });
 
+  // If the TV suspends audio, the next key press brings it back.
+  await page.evaluate(() => AT.audio._ctx().suspend());
+  await page.waitForFunction(() => AT.audio._ctx().state === 'suspended');
   await press(page, 'ArrowUp');
+  await page.waitForFunction(() => AT.audio._ctx().state === 'running', null, { timeout: 3000 });
   assert.strictEqual(await page.locator('#vol').innerText(), '♪ 70%');
   assert.strictEqual(await page.evaluate(() => localStorage.getItem('at.music')), '70');
 

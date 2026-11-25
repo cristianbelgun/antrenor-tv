@@ -26,6 +26,7 @@
     var gen = null; // { comp, bar, nextBarAt, startAt }
     var tempo = null; // { t, startAt, next }
     var events = [];
+    var busLevel = 0, mp3Failures = 0;
 
     function readVolume() {
       var v = safe(function () { return storage && storage.getItem(KEY); });
@@ -62,11 +63,12 @@
     function apply() {
       var target = vol === 0 ? 'off' : wanted;
       if (!ctx) { mode = target; return; }
-      if (target === 'off') { if (mode !== 'off') stopMusic(); mode = 'off'; return; }
+      if (target === 'off') { if (mode !== 'off') stopMusic(); mode = 'off'; busLevel = 0; return; }
       var wasOff = mode === 'off';
       mode = target;
       if (wasOff) startMusic();
-      setBus(level());
+      // Touch the bus only when the level really changes: a play↔rest switch must not cancel a running duck.
+      if (wasOff || busLevel !== level()) { busLevel = level(); setBus(busLevel); }
     }
     function setBus(v) {
       safe(function () {
@@ -102,6 +104,15 @@
         mp3Direct = false;
         try { ctx.createMediaElementSource(el).connect(musicBus); } catch (e) { mp3Direct = true; el.volume = vol / 100; }
         el.addEventListener('ended', function () { if (mp3 === el && mode !== 'off') playMp3(); });
+        el.addEventListener('playing', function () { if (mp3 === el) mp3Failures = 0; });
+        el.addEventListener('error', function () {
+          if (mp3 !== el || mode === 'off') return;
+          mp3Failures++;
+          if (mp3Failures >= playlist.length) { // every file failed: use generated music instead
+            playlist = []; mp3 = null; mp3Failures = 0;
+            startMusic();
+          } else playMp3();
+        });
         mp3 = el;
         var p = el.play();
         if (p && p.catch) p.catch(function () {});
@@ -251,6 +262,7 @@
       },
       events: events,
       _ctx: function () { return ctx; },
+      _buses: function () { return { music: musicBus, sfx: sfxBus }; },
       _pump: pump
     };
   }
