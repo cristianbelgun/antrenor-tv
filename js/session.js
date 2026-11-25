@@ -92,6 +92,12 @@
     return { state: toExercise(s, pos), effects: effects };
   }
 
+  function resumePosition(w, history, now) {
+    var h = emptyHistory(history);
+    var s = workoutState(w, h, now, h.sets.filter(function (x) { return x.workoutId === w.id; }));
+    return nextIncomplete(s, 0);
+  }
+
   function logDefault(s, ctx) {
     var exId = s.exIds[s.exIndex];
     var last = AT.progression.lastValues(exId, emptyHistory(ctx.history), s.workout.id);
@@ -197,6 +203,6 @@
     return none;
   }
 
-  AT.session = { home: home, next: next, REST_MS: REST_MS, WARMUP_MS: WARMUP_MS };
+  AT.session = { home: home, next: next, resumePosition: resumePosition, REST_MS: REST_MS, WARMUP_MS: WARMUP_MS };
   if (typeof module === 'object' && module.exports) module.exports = AT.session;
 })(typeof window !== 'undefined' ? window : globalThis);

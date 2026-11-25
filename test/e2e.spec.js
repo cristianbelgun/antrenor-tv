@@ -1,0 +1,131 @@
+// End-to-end smoke test: drives a whole Workout A with the keyboard (like the TV remote).
+// Run: node test/e2e.spec.js
+const { chromium } = require('playwright');
+const assert = require('assert');
+const http = require('http'), fs = require('fs'), path = require('path');
+
+const ROOT = path.join(__dirname, '..');
+const OUT = path.join(ROOT, 'test-results');
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
+
+function serve() {
+  return new Promise(resolve => {
+    const srv = http.createServer((req, res) => {
+      let p = decodeURIComponent(req.url.split('?')[0]);
+      if (p.endsWith('/')) p += 'index.html';
+      const file = path.join(ROOT, p);
+      if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end(); }
+      res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
+      fs.createReadStream(file).pipe(res);
+    });
+    srv.listen(0, '127.0.0.1', () => resolve(srv));
+  });
+}
+
+function fakeApi(page, state) {
+  return page.route('**/api.php*', async route => {
+    const req = route.request();
+    if (req.method() === 'POST') {
+      const body = JSON.parse(req.postData());
+      if (body.secret !== 'k') return route.fulfill({ status: 403, contentType: 'application/json', body: '{"ok":false,"error":"unauthorized"}' });
+      body.ops.forEach(o => { state.ops.push(o); if (o.kind === 'set' && !state.sets.some(s => s.id === o.data.id)) state.sets.push(o.data); });
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, applied: body.ops.length }) });
+    }
+    if (state.forbidGet) return route.fulfill({ status: 403, contentType: 'application/json', body: '{"ok":false,"error":"unauthorized"}' });
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(Object.assign({ ok: true, workouts: [], sets: [], state: null }, state.remote || {})) });
+  });
+}
+
+async function text(page) { return page.locator('#app').innerText(); }
+async function screen(page) { return page.locator('#app').getAttribute('data-screen'); }
+async function shot(page, name) { await page.screenshot({ path: path.join(OUT, name + '.png') }); }
+
+async function workoutA(browser, base) {
+  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  const api = { ops: [], sets: [] };
+  await fakeApi(page, api);
+  await page.clock.install({ time: new Date('2026-11-25T18:00:00') });
+  await page.addInitScript(() => { window.AT = window.AT || {}; window.AT.config = { secret: 'k' }; });
+  await page.goto(base + '/index.html');
+  await page.waitForSelector('#app[data-screen="home"]');
+  assert.match(await text(page), /Antrenamentul A/);
+  await shot(page, 'e2e-1-home');
+
+  await page.keyboard.press('Enter');
+  assert.strictEqual(await screen(page), 'warmup');
+  assert.match(await text(page), /6:00|5:59/);
+  await shot(page, 'e2e-2-warmup');
+  await page.keyboard.press('Enter');
+  assert.strictEqual(await screen(page), 'exercise');
+  let t = await text(page);
+  assert.match(t, /Genuflexiuni cu gantera/);
+  assert.match(t, /Seria 1 din 2/);
+  assert.match(t, /Ultima dată: —/);
+  await shot(page, 'e2e-3-exercise');
+
+  await page.keyboard.press('Enter');
+  assert.strictEqual(await screen(page), 'log');
+  await page.keyboard.press('ArrowUp');
+  assert.match(await text(page), /13/);
+  await shot(page, 'e2e-4-log');
+  await page.keyboard.press('Enter');
+  assert.strictEqual(await screen(page), 'rest');
+  assert.match(await text(page), /Pauză/i);
+  await shot(page, 'e2e-5-rest');
+  await page.clock.runFor(91000);
+  assert.strictEqual(await screen(page), 'exercise');
+  assert.match(await text(page), /Seria 2 din 2/);
+
+  let guard = 0;
+  while ((await screen(page)) !== 'summary' && guard++ < 60) {
+    const s = await screen(page);
+    if (s === 'exercise') {
+      await page.keyboard.press('Enter');
+      if ((await screen(page)) === 'plank') {
+        await shot(page, 'e2e-6-plank');
+        await page.clock.runFor(40000);
+        await page.keyboard.press('Enter');
+        assert.strictEqual(await screen(page), 'log');
+        assert.match(await text(page), /40/);
+      }
+    } else if (s === 'log' || s === 'rest') {
+      await page.keyboard.press('Enter');
+    } else throw new Error('unexpected screen ' + s);
+  }
+  await page.clock.runFor(1000);
+  assert.strictEqual(await screen(page), 'summary');
+  assert.match(await text(page), /Primul antrenament A/);
+  await shot(page, 'e2e-7-summary');
+
+  await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('at.outbox')).length === 0; } catch (e) { return false; } });
+  assert.strictEqual(api.sets.length, 12, 'server received 12 sets');
+  assert.strictEqual(new Set(api.sets.map(s => s.id)).size, 12);
+  assert.deepStrictEqual(errors, []);
+  await page.close();
+}
+
+async function offlineBanner(browser, base) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await page.route('**/api.php*', route => route.abort());
+  await page.addInitScript(() => { window.AT = window.AT || {}; window.AT.config = { secret: 'k' }; });
+  await page.goto(base + '/index.html');
+  await page.waitForSelector('#app[data-screen="home"]', { timeout: 10000 });
+  assert.match(await page.locator('body').innerText(), /Fără conexiune, salvez pe televizor/);
+  await page.close();
+}
+
+(async () => {
+  fs.mkdirSync(OUT, { recursive: true });
+  const srv = await serve();
+  const base = 'http://127.0.0.1:' + srv.address().port;
+  const browser = await chromium.launch();
+  let failed = false;
+  for (const [name, fn] of [['workout A end to end', workoutA], ['offline banner', offlineBanner]].concat(global.EXTRA_E2E || [])) {
+    try { await fn(browser, base); console.log('ok -', name); }
+    catch (e) { failed = true; console.log('not ok -', name, '\n', e && e.stack || e); }
+  }
+  await browser.close(); srv.close();
+  process.exit(failed ? 1 : 0);
+})();

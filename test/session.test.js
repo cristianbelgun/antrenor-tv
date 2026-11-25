@@ -179,3 +179,10 @@ test('rest day: home still offers the workout', () => {
   t.act('OK');
   assert.strictEqual(t.s.screen, 'warmup');
 });
+
+test('resumePosition reports the exercise and set to continue at', () => {
+  const w = { id: 'today', type: 'B', startedAt: '2026-11-25T17:30:00', finishedAt: null };
+  const h = { workouts: [w], sets: [{ id: 'a', workoutId: 'today', exerciseId: 'rdl', setIndex: 1 }, { id: 'b', workoutId: 'today', exerciseId: 'rdl', setIndex: 2 }],
+    state: { firstWorkoutAt: null, progression: {} } };
+  assert.deepStrictEqual(S.resumePosition(w, h, new Date('2026-11-25T18:00:00')), { exIndex: 1, setIndex: 1 });
+});

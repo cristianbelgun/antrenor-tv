@@ -1,0 +1,86 @@
+/* Antrenor TV: scena 16:9 cu temă închisă. 1rem = 1% din lățimea scenei (setat de app.js), ca să meargă și pe browsere TV mai vechi. */
+:root {
+  --bg: #000;
+  --tv: #111513; --tv-2: #1b211e; --line: #2a312d;
+  --ink: #f1f4ef; --muted: #93a097;
+  --go: #c6f05a; --rest: #5ec8e6; --warn: #f2b84b;
+  --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "Inter", "LG Smart UI", "Roboto", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); overflow: hidden; }
+body { display: flex; align-items: center; justify-content: center; }
+[hidden] { display: none !important; }
+
+.tv {
+  position: relative;
+  width: 100vw; height: 56.25vw; /* app.js fits the stage and sets 1rem = 1% of its width */
+  background: var(--tv);
+  overflow: hidden;
+}
+.scr { position: absolute; top: 0; right: 0; bottom: 0; left: 0; padding: 4rem 5rem; display: flex; flex-direction: column; gap: 2rem; }
+.top { display: flex; justify-content: space-between; align-items: baseline; font-size: 1.6rem; color: var(--muted); letter-spacing: .04em; }
+.big { font-family: var(--display); font-weight: 700; line-height: .95; }
+.num { font-variant-numeric: tabular-nums; }
+.hint { position: absolute; left: 5rem; right: 5rem; bottom: 3rem; display: flex; gap: 3rem; font-size: 1.5rem; color: var(--muted); }
+.hint.c { justify-content: center; }
+.key { display: inline-block; border: .15rem solid var(--muted); border-radius: .5rem; padding: 0 .7rem; margin-right: .6rem; color: var(--ink); font-weight: 600; }
+.center-msg { margin: auto; font-size: 2.4rem; color: var(--muted); }
+.banner { position: absolute; top: 1.4rem; right: 2rem; font-size: 1.3rem; color: var(--warn); background: rgba(0,0,0,.35); padding: .4rem 1rem; border-radius: .6rem; }
+
+/* pornire */
+.title { font-size: 6rem; }
+.sub { font-size: 2.2rem; color: var(--muted); }
+.list { display: grid; grid-template-columns: 1fr auto auto; gap: 1.1rem 4rem; font-size: 2rem; align-items: baseline; margin-top: .5rem; }
+.list .h { font-size: 1.3rem; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+.list .last { color: var(--muted); }
+.btns { display: flex; gap: 2rem; margin-top: auto; margin-bottom: 4rem; }
+.btn { font: inherit; cursor: pointer; background: transparent; color: var(--ink); font-weight: 600; font-size: 2rem; padding: 1.2rem 3rem; border-radius: .8rem; border: .2rem solid var(--muted); }
+.btn.on { background: var(--go); color: var(--tv); border-color: var(--go); outline: .4rem solid var(--go); outline-offset: .5rem; }
+
+/* încălzire */
+.warm { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; flex: 1; padding-bottom: 5rem; }
+.warm .clock { font-size: 16rem; color: var(--go); }
+.warm ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 1.4rem; font-size: 2.4rem; }
+
+/* exercițiu */
+.ex { display: grid; grid-template-columns: 46% 1fr; gap: 4rem; height: 100%; padding-bottom: 5rem; }
+.anim { background: var(--tv-2); border-radius: 1.4rem; display: flex; align-items: center; justify-content: center; position: relative; min-height: 0; }
+.anim svg { width: 92%; height: 92%; }
+.anim .tag { position: absolute; top: 1.4rem; left: 1.6rem; font-size: 1.3rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.info { display: flex; flex-direction: column; gap: 1.5rem; justify-content: center; min-width: 0; }
+.info .name { font-size: 4.6rem; }
+.set { font-size: 2.2rem; color: var(--go); font-weight: 600; }
+.dots { display: flex; gap: .8rem; } .dots i { width: 2.4rem; height: .7rem; border-radius: .4rem; background: #2f3833; } .dots i.on { background: var(--go); }
+.target { font-size: 8rem; }
+.target small { font-family: var(--body); font-size: 1.8rem; font-weight: 500; color: var(--muted); margin-left: 1rem; }
+.prev { font-size: 1.8rem; color: var(--muted); } .prev b { color: var(--ink); }
+.tip { font-size: 1.7rem; border-left: .35rem solid var(--warn); padding-left: 1.4rem; }
+.sugg { font-size: 1.7rem; color: var(--go); }
+
+/* cronometru plank, notare, pauză, confirmare */
+.mid { align-items: center; justify-content: center; text-align: center; }
+.q { font-size: 2.6rem; }
+.stepper { display: flex; flex-direction: column; align-items: center; gap: .6rem; }
+.stepper .arr { font-size: 2.6rem; color: var(--muted); }
+.stepper .n { font-size: 17rem; color: var(--go); }
+.plank-n { font-size: 17rem; color: var(--go); }
+.bar { position: relative; width: 50rem; height: 1rem; background: #26302b; border-radius: .5rem; }
+.bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--go); border-radius: .5rem; }
+.bar .mark { position: absolute; top: -1rem; bottom: -1rem; width: .25rem; background: var(--muted); }
+.bar .lab { position: absolute; top: 2rem; font-size: 1.4rem; color: var(--muted); transform: translateX(-50%); }
+.ring { position: relative; width: 30rem; height: 30rem; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring .t { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; font-size: 10rem; }
+.lbl { font-size: 2rem; color: var(--rest); letter-spacing: .2em; text-transform: uppercase; font-weight: 600; }
+.next { font-size: 2rem; color: var(--muted); } .next b { color: var(--ink); }
+
+/* final */
+.sum table { border-collapse: collapse; font-size: 1.9rem; width: 100%; }
+.sum th { text-align: left; font-size: 1.3rem; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; font-weight: 500; padding-bottom: .8rem; }
+.sum td { padding: .6rem 0; border-top: .1rem solid var(--line); }
+.up { color: var(--go); font-weight: 600; } .down { color: var(--warn); } .same { color: var(--muted); }
+.sum .head { font-size: 5rem; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
